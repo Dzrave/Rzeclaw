@@ -28,6 +28,7 @@ export function loadConfig(overridePath) {
         model: "anthropic/claude-sonnet-4-20250514",
         workspace: DEFAULT_WORKSPACE,
         port: DEFAULT_PORT,
+        contextWindowRounds: 5,
     };
     if (path && existsSync(path)) {
         const data = loadJson(path);
@@ -39,6 +40,40 @@ export function loadConfig(overridePath) {
             base.port = data.port;
         if (typeof data.apiKeyEnv === "string")
             base.apiKeyEnv = data.apiKeyEnv;
+        if (data.memory != null && typeof data.memory === "object") {
+            const m = data.memory;
+            base.memory = {
+                enabled: m.enabled === true,
+                storagePath: typeof m.storagePath === "string" ? m.storagePath : undefined,
+                workspaceId: typeof m.workspaceId === "string" ? m.workspaceId : undefined,
+                coldAfterDays: typeof m.coldAfterDays === "number" && m.coldAfterDays >= 0 ? m.coldAfterDays : undefined,
+            };
+        }
+        if (typeof data.contextWindowRounds === "number" && data.contextWindowRounds > 0) {
+            base.contextWindowRounds = data.contextWindowRounds;
+        }
+        if (typeof data.reflectionToolCallInterval === "number" && data.reflectionToolCallInterval > 0) {
+            base.reflectionToolCallInterval = data.reflectionToolCallInterval;
+        }
+        if (typeof data.summaryEveryRounds === "number" && data.summaryEveryRounds > 0) {
+            base.summaryEveryRounds = data.summaryEveryRounds;
+        }
+        if (data.evolution != null && typeof data.evolution === "object") {
+            const ev = data.evolution;
+            base.evolution = {
+                bootstrapDocPath: typeof ev.bootstrapDocPath === "string" ? ev.bootstrapDocPath : undefined,
+            };
+        }
+        if (data.planning != null && typeof data.planning === "object") {
+            const p = data.planning;
+            base.planning = {
+                enabled: p.enabled === true,
+                maxSteps: typeof p.maxSteps === "number" && p.maxSteps > 0 ? p.maxSteps : undefined,
+                complexThresholdChars: typeof p.complexThresholdChars === "number" && p.complexThresholdChars >= 0
+                    ? p.complexThresholdChars
+                    : undefined,
+            };
+        }
     }
     return base;
 }

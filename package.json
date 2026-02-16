@@ -11,7 +11,8 @@
     "build": "tsc",
     "start": "node rzeclaw.mjs",
     "gateway": "node rzeclaw.mjs gateway",
-    "agent": "node rzeclaw.mjs agent"
+    "agent": "node rzeclaw.mjs agent",
+    "test": "npm run build && node --test test/*.test.js"
   },
   "engines": {
     "node": ">=18.0.0"

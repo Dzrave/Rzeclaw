@@ -5,6 +5,11 @@ import type { ToolDef, ToolResult } from "./types.js";
 export const writeTool: ToolDef = {
   name: "write",
   description: "Write content to a file. Path is relative to workspace. Creates parent dirs if needed.",
+  usageHint:
+    "Use when: creating new files or overwriting whole file. For small edits prefer edit (old_string/new_string). Pitfall: overwrites entire file.",
+  examples: [
+    { path: "README.md", content: "# Title\n\nBody." },
+  ],
   inputSchema: {
     type: "object",
     properties: {

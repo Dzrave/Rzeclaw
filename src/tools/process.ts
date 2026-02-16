@@ -3,6 +3,12 @@ import type { ToolDef, ToolResult } from "./types.js";
 export const processTool: ToolDef = {
   name: "process",
   description: "List or kill processes. action: 'list' (show running processes) or 'kill' with pid.",
+  usageHint:
+    "Use when: listing running processes or terminating one by pid. For kill always pass a positive integer pid.",
+  examples: [
+    { action: "list" },
+    { action: "kill", pid: 12345 },
+  ],
   inputSchema: {
     type: "object",
     properties: {
@@ -24,7 +30,12 @@ export const processTool: ToolDef = {
     if (action === "kill") {
       const pid = args.pid;
       if (typeof pid !== "number" || !Number.isInteger(pid) || pid < 1) {
-        return { ok: false, error: "kill requires a positive integer pid" };
+        return {
+        ok: false,
+        error: "kill requires a positive integer pid",
+        code: "PID_INVALID",
+        suggestion: "Use action: 'list' to get PIDs, then pass one as pid for action: 'kill'.",
+      };
       }
       try {
         process.kill(pid, "SIGTERM");
@@ -34,6 +45,11 @@ export const processTool: ToolDef = {
         return { ok: false, error: msg };
       }
     }
-    return { ok: false, error: "action must be list or kill" };
+    return {
+      ok: false,
+      error: "action must be list or kill",
+      code: "ACTION_INVALID",
+      suggestion: "Use action: 'list' to list processes or action: 'kill' with pid to terminate.",
+    };
   },
 };

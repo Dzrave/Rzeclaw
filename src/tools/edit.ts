@@ -16,6 +16,11 @@ function applySearchReplace(
 export const editTool: ToolDef = {
   name: "edit",
   description: "Edit a file by replacing the first occurrence of old_string with new_string. Use for small, precise edits.",
+  usageHint:
+    "Use when: changing one exact snippet in a file (fix typo, update one line). old_string must match exactly. Pitfall: only first occurrence is replaced; for multiple use multiple edit calls.",
+  examples: [
+    { path: "package.json", old_string: "\"version\": \"0.0.0\"", new_string: "\"version\": \"1.0.0\"" },
+  ],
   inputSchema: {
     type: "object",
     properties: {
@@ -46,13 +51,23 @@ export const editTool: ToolDef = {
       const text = await readFile(full, "utf-8");
       const updated = applySearchReplace(text, oldStr, newStr);
       if (updated === text && oldStr) {
-        return { ok: false, error: "old_string not found in file" };
+        return {
+          ok: false,
+          error: "old_string not found in file",
+          code: "OLD_STRING_NOT_FOUND",
+          suggestion: "Copy the exact string from the file (including spaces/newlines); old_string must match exactly.",
+        };
       }
       await writeFile(full, updated, "utf-8");
       return { ok: true, content: `Updated ${rel}` };
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      return { ok: false, error: msg };
+      const code = (e as NodeJS.ErrnoException)?.code === "ENOENT" ? "FILE_NOT_FOUND" : "EDIT_ERROR";
+      const suggestion =
+        (e as NodeJS.ErrnoException)?.code === "ENOENT"
+          ? "Ensure the file exists; use read to verify path and content first."
+          : "Check path and file permissions.";
+      return { ok: false, error: msg, code, suggestion };
     }
   },
 };
