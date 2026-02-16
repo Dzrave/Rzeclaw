@@ -1,0 +1,40 @@
+{
+  "name": "rzeclaw",
+  "version": "0.1.0",
+  "description": "Minimal core of an OpenClaw-style AI assistant — gateway + agent + computer tools only",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "rzeclaw": "rzeclaw.mjs"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node rzeclaw.mjs",
+    "gateway": "node rzeclaw.mjs gateway",
+    "agent": "node rzeclaw.mjs agent"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "commander": "^12.0.0",
+    "dotenv": "^16.4.5",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1",
+    "typescript": "^5.6.0"
+  },
+  "keywords": [
+    "ai",
+    "assistant",
+    "openclaw",
+    "minimal",
+    "tools",
+    "bash",
+    "automation"
+  ],
+  "license": "MIT"
+}
