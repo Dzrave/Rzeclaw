@@ -8,22 +8,74 @@ import { promoteL1ToL2 } from "../memory/l2.js";
 import { writePromptSuggestions } from "../evolution/prompt-suggestions.js";
 import { archiveCold } from "../memory/cold-archive.js";
 import { writeSnapshot, readSnapshot, listSnapshots } from "../session/snapshot.js";
-import { CORE_TOOLS, getTool } from "../tools/index.js";
+import { readCanvas, updateCanvas } from "../canvas/index.js";
+import { getMergedTools } from "../tools/merged.js";
+import { runHeartbeatTick } from "../heartbeat/index.js";
+import { runProactiveInference } from "../proactive/index.js";
+import { getGatewayApiKey, isLlmReady } from "../config.js";
+import { ingestPaths } from "../knowledge/index.js";
+import { generateReport, writeSuggestionsFile } from "../diagnostic/index.js";
 import path from "node:path";
 import { access } from "node:fs/promises";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+/** Phase 8: 每连接认证状态 */
+const authenticatedSockets = new WeakMap();
 const sessions = new Map();
-function getOrCreateSession(sessionId) {
+function getOrCreateSession(sessionId, sessionType) {
     let s = sessions.get(sessionId);
     if (!s) {
-        s = { messages: [] };
+        s = { messages: [], ...(sessionType ? { sessionType } : {}) };
         sessions.set(sessionId, s);
+    }
+    else if (sessionType !== undefined) {
+        s.sessionType = sessionType;
     }
     return s;
 }
 export function createGatewayServer(config, port) {
-    const wss = new WebSocketServer({ port });
+    const host = config.gateway?.host ?? "127.0.0.1";
+    const wss = new WebSocketServer({ host, port });
+    let bonjourInstance = null;
     wss.on("listening", () => {
-        console.log(`[rzeclaw] Gateway ws://127.0.0.1:${port}`);
+        console.log(`[rzeclaw] Gateway ws://${host}:${port}`);
+        const intervalMinutes = config.heartbeat?.intervalMinutes ?? 0;
+        if (intervalMinutes > 0) {
+            const workspace = path.resolve(config.workspace);
+            const run = () => {
+                runHeartbeatTick(config, workspace).catch((e) => console.error("[rzeclaw] Heartbeat tick error:", e));
+            };
+            setInterval(run, intervalMinutes * 60 * 1000);
+        }
+        if (config.gateway?.discovery?.enabled === true) {
+            try {
+                const Bonjour = require("bonjour");
+                bonjourInstance = Bonjour();
+                bonjourInstance.publish({ name: "Rzeclaw", type: "rzeclaw", port });
+                console.log("[rzeclaw] mDNS discovery: _rzeclaw._tcp advertised");
+            }
+            catch (e) {
+                console.error("[rzeclaw] mDNS discovery failed:", e);
+            }
+        }
+        if (config.knowledge?.ingestOnStart === true && Array.isArray(config.knowledge.ingestPaths) && config.knowledge.ingestPaths.length > 0) {
+            const workspace = path.resolve(config.workspace);
+            ingestPaths(workspace, config.knowledge.ingestPaths, { workspaceId: config.memory?.workspaceId }).then((r) => {
+                console.log(`[rzeclaw] Knowledge ingest on start: ok=${r.ok} failed=${r.failed}`);
+            }).catch((e) => console.error("[rzeclaw] Knowledge ingest on start error:", e));
+        }
+        const scheduleDays = config.diagnostic?.intervalDaysSchedule ?? 0;
+        if (scheduleDays > 0) {
+            const intervalMs = scheduleDays * 24 * 60 * 60 * 1000;
+            setInterval(() => {
+                const workspace = path.resolve(config.workspace);
+                (async () => {
+                    const { report, filePath } = await generateReport(config, { workspace, days: scheduleDays });
+                    await writeSuggestionsFile(workspace, report);
+                    console.log("[rzeclaw] Diagnostic report:", filePath);
+                })().catch((e) => console.error("[rzeclaw] Diagnostic report error:", e));
+            }, intervalMs);
+        }
     });
     wss.on("connection", (ws) => {
         ws.on("message", async (raw) => {
@@ -39,14 +91,28 @@ export function createGatewayServer(config, port) {
                 const sendError = (error) => {
                     ws.send(JSON.stringify({ id, error: { message: error } }));
                 };
+                const authEnabled = config.gateway?.auth?.enabled === true;
+                const isAuthenticated = authenticatedSockets.get(ws) === true;
+                if (authEnabled && !isAuthenticated) {
+                    const providedKey = params.apiKey;
+                    const expectedKey = getGatewayApiKey(config);
+                    if (!expectedKey || typeof providedKey !== "string" || providedKey !== expectedKey) {
+                        sendError("Unauthorized: invalid or missing apiKey. Set gateway.auth.apiKeyEnv and provide apiKey in params.");
+                        ws.close();
+                        return;
+                    }
+                    authenticatedSockets.set(ws, true);
+                }
                 if (method === "session.getOrCreate") {
                     const sessionId = params.sessionId || "main";
-                    const session = getOrCreateSession(sessionId);
+                    const sessionType = typeof params.sessionType === "string" ? params.sessionType : undefined;
+                    const session = getOrCreateSession(sessionId, sessionType);
                     send({
                         sessionId,
                         messagesCount: session.messages.length,
                         hasGoal: !!session.sessionGoal,
                         hasSummary: !!session.sessionSummary,
+                        sessionType: session.sessionType,
                     });
                     return;
                 }
@@ -59,10 +125,12 @@ export function createGatewayServer(config, port) {
                         session.messages = snapshot.messages;
                         session.sessionGoal = snapshot.sessionGoal;
                         session.sessionSummary = snapshot.sessionSummary;
-                        send({ sessionId, restored: true, messagesCount: session.messages.length });
+                        if (snapshot.sessionType != null)
+                            session.sessionType = snapshot.sessionType;
+                        send({ sessionId, restored: true, messagesCount: session.messages.length, sessionType: session.sessionType });
                     }
                     else {
-                        send({ sessionId, restored: false, messagesCount: session.messages.length });
+                        send({ sessionId, restored: false, messagesCount: session.messages.length, sessionType: session.sessionType });
                     }
                     return;
                 }
@@ -70,10 +138,15 @@ export function createGatewayServer(config, port) {
                     const sessionId = params.sessionId || "main";
                     const session = getOrCreateSession(sessionId);
                     const workspace = path.resolve(config.workspace);
+                    if (session.sessionFlags?.privacy) {
+                        send({ sessionId, saved: false, reason: "privacy" });
+                        return;
+                    }
                     await writeSnapshot(workspace, sessionId, {
                         messages: session.messages,
                         sessionGoal: session.sessionGoal,
                         sessionSummary: session.sessionSummary,
+                        sessionType: session.sessionType,
                     });
                     send({ sessionId, saved: true });
                     return;
@@ -106,7 +179,7 @@ export function createGatewayServer(config, port) {
                         ok: true,
                         configLoaded: true,
                         workspaceWritable,
-                        apiKeySet: !!process.env[config.apiKeyEnv ?? "ANTHROPIC_API_KEY"]?.trim(),
+                        llmReady: isLlmReady(config),
                     });
                     return;
                 }
@@ -118,6 +191,9 @@ export function createGatewayServer(config, port) {
                         return;
                     }
                     const session = getOrCreateSession(sessionId);
+                    if (typeof params.privacy === "boolean") {
+                        session.sessionFlags = { ...session.sessionFlags, privacy: params.privacy };
+                    }
                     if (!session.sessionGoal)
                         session.sessionGoal = message.trim().slice(0, 200);
                     const workspace = path.resolve(params.workspace || config.workspace);
@@ -135,12 +211,15 @@ export function createGatewayServer(config, port) {
                             session.sessionSummary = newSummary;
                     }
                     const { content, messages, citedMemoryIds } = await runAgentLoop({
-                        config,
+                        config: { ...config, workspace },
                         userMessage: message,
                         sessionMessages: session.messages,
                         sessionId,
                         sessionGoal: session.sessionGoal,
                         sessionSummary: session.sessionSummary,
+                        sessionType: session.sessionType,
+                        teamId: typeof params.teamId === "string" ? params.teamId : undefined,
+                        sessionFlags: session.sessionFlags,
                         onText: (chunk) => {
                             try {
                                 ws.send(JSON.stringify({ id, stream: "text", chunk }));
@@ -149,12 +228,15 @@ export function createGatewayServer(config, port) {
                         },
                     });
                     session.messages = messages;
-                    await writeSnapshot(workspace, sessionId, {
-                        messages: session.messages,
-                        sessionGoal: session.sessionGoal,
-                        sessionSummary: session.sessionSummary,
-                    });
-                    if (config.memory?.enabled && messages.length >= 2) {
+                    if (!session.sessionFlags?.privacy) {
+                        await writeSnapshot(workspace, sessionId, {
+                            messages: session.messages,
+                            sessionGoal: session.sessionGoal,
+                            sessionSummary: session.sessionSummary,
+                            sessionType: session.sessionType,
+                        });
+                    }
+                    if (config.memory?.enabled && messages.length >= 2 && !session.sessionFlags?.privacy) {
                         const store = createStore(workspace, config.memory.workspaceId);
                         const { summary, factCount } = await flushToL1({
                             config,
@@ -197,7 +279,8 @@ export function createGatewayServer(config, port) {
                     const name = params.name;
                     const args = params.args ?? {};
                     const workspace = path.resolve(config.workspace);
-                    const tool = getTool(name);
+                    const merged = await getMergedTools(config, workspace);
+                    const tool = merged.find((t) => t.name === name);
                     if (!tool) {
                         sendError(`Unknown tool: ${name}`);
                         return;
@@ -212,13 +295,95 @@ export function createGatewayServer(config, port) {
                     return;
                 }
                 if (method === "tools.list") {
+                    const workspace = path.resolve(config.workspace);
+                    const merged = await getMergedTools(config, workspace);
                     send({
-                        tools: CORE_TOOLS.map((t) => ({
+                        tools: merged.map((t) => ({
                             name: t.name,
                             description: t.description,
                             inputSchema: t.inputSchema,
                         })),
                     });
+                    return;
+                }
+                if (method === "canvas.get") {
+                    const workspace = path.resolve(params.workspace || config.workspace);
+                    const canvas = await readCanvas(workspace);
+                    send({ canvas });
+                    return;
+                }
+                if (method === "proactive.suggest") {
+                    const workspace = path.resolve(params.workspace || config.workspace);
+                    const trigger = params.trigger || "explicit";
+                    try {
+                        const result = await runProactiveInference(config, { trigger, workspaceRoot: workspace });
+                        send(result);
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                if (method === "heartbeat.tick") {
+                    const workspace = path.resolve(params.workspace || config.workspace);
+                    try {
+                        const result = await runHeartbeatTick(config, workspace);
+                        send(result);
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                if (method === "canvas.update") {
+                    const workspace = path.resolve(params.workspace || config.workspace);
+                    const partial = {};
+                    if (params.goal !== undefined)
+                        partial.goal = params.goal;
+                    if (params.steps !== undefined)
+                        partial.steps = params.steps;
+                    if (params.currentStepIndex !== undefined)
+                        partial.currentStepIndex = params.currentStepIndex;
+                    if (params.artifacts !== undefined)
+                        partial.artifacts = params.artifacts;
+                    const canvas = await updateCanvas(workspace, partial);
+                    send({ canvas });
+                    return;
+                }
+                if (method === "swarm.getTeams") {
+                    send({
+                        teams: config.swarm?.teams ?? [],
+                        defaultTeamId: config.swarm?.defaultTeamId,
+                    });
+                    return;
+                }
+                if (method === "knowledge.ingest") {
+                    const workspace = path.resolve(params.workspace || config.workspace);
+                    const paths = Array.isArray(params.paths) && params.paths.length > 0
+                        ? params.paths.filter((p) => typeof p === "string")
+                        : (config.knowledge?.ingestPaths ?? []);
+                    try {
+                        const result = await ingestPaths(workspace, paths, {
+                            workspaceId: config.memory?.workspaceId,
+                        });
+                        send(result);
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                if (method === "diagnostic.report") {
+                    const workspace = path.resolve(params.workspace || config.workspace);
+                    const days = typeof params.days === "number" && params.days > 0 ? params.days : undefined;
+                    try {
+                        const { report, filePath } = await generateReport(config, { workspace, days });
+                        const suggestionsPath = await writeSuggestionsFile(workspace, report);
+                        send({ report, filePath, suggestionsPath });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
                     return;
                 }
                 sendError(`Unknown method: ${method}`);

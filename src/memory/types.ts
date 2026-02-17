@@ -7,7 +7,8 @@ export type ContentType =
   | "summary"
   | "preference"
   | "task_outcome"
-  | "tool_experience";
+  | "tool_experience"
+  | "document"; // Phase 11: 摄取的文件块
 
 export type Validity = "active" | "superseded" | "contradicted";
 
@@ -20,6 +21,10 @@ export interface Provenance {
   message_id?: string;
   quote_start?: number;
   quote_end?: number;
+  /** Phase 11: 摄取来源文件路径 */
+  source_path?: string;
+  /** Phase 11: 摄取批次 id */
+  ingest_batch_id?: string;
 }
 
 export interface MemoryEntry {

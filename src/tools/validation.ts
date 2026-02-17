@@ -138,12 +138,71 @@ function validateProcess(args: Record<string, unknown>, _cwd: string): Validatio
   return null;
 }
 
+function validateUiDescribe(_args: Record<string, unknown>, _cwd: string): ValidationFailure | null {
+  return null;
+}
+
+function validateUiAct(args: Record<string, unknown>, _cwd: string): ValidationFailure | null {
+  if (typeof args.processName !== "string" || !args.processName.trim()) {
+    return { code: "PROCESS_NAME_MISSING", message: "processName is required", suggestion: "Use the process name from ui_describe, e.g. Code" };
+  }
+  if (typeof args.elementName !== "string" || !args.elementName.trim()) {
+    return { code: "ELEMENT_NAME_MISSING", message: "elementName is required", suggestion: "Use the control name or AutomationId from ui_describe" };
+  }
+  if (typeof args.action !== "string" || !["click", "set_value"].includes(args.action.toLowerCase())) {
+    return { code: "ACTION_INVALID", message: "action must be 'click' or 'set_value'", suggestion: "Use action: 'click' or action: 'set_value'" };
+  }
+  return null;
+}
+
+function validateUiFocus(args: Record<string, unknown>, _cwd: string): ValidationFailure | null {
+  if (typeof args.processName !== "string" || !args.processName.trim()) {
+    return { code: "PROCESS_NAME_MISSING", message: "processName is required", suggestion: "Use the process name from ui_describe" };
+  }
+  return null;
+}
+
 const validators: Record<string, (args: Record<string, unknown>, cwd: string) => ValidationFailure | null> = {
   bash: validateBash,
   read: validateRead,
   write: validateWrite,
   edit: validateEdit,
   process: validateProcess,
+  ui_describe: validateUiDescribe,
+  ui_act: validateUiAct,
+  ui_focus: validateUiFocus,
+  keymouse: (args) => {
+    if (typeof args.keys !== "string" || !args.keys.trim()) {
+      return {
+        code: "KEYS_MISSING",
+        message: "keys is required",
+        suggestion: "Use e.g. ^s for Ctrl+S, {ENTER} for Enter",
+      };
+    }
+    return null;
+  },
+  undo_last: () => null,
+  operation_status: (args) => {
+    if (typeof args.asyncHandle !== "string" || !args.asyncHandle.trim()) {
+      return {
+        code: "HANDLE_MISSING",
+        message: "asyncHandle is required",
+        suggestion: "Use the asyncHandle returned by bash when async: true",
+      };
+    }
+    return null;
+  },
+  replay_ops: (args) => {
+    const last = args.last;
+    if (last !== undefined && (typeof last !== "number" || !Number.isInteger(last) || last < 1 || last > 50)) {
+      return {
+        code: "INVALID_LAST",
+        message: "last must be an integer between 1 and 50 if provided",
+        suggestion: "Use last: 1 or last: 5 to replay the last 1 or 5 operations",
+      };
+    }
+    return null;
+  },
 };
 
 export function validateToolArgs(

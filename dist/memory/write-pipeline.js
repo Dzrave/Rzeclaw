@@ -3,8 +3,7 @@
  */
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import Anthropic from "@anthropic-ai/sdk";
-import { getApiKey } from "../config.js";
+import { getLLMClient } from "../llm/index.js";
 import { writeAuditLog } from "./audit.js";
 /** WO-510: 简单规则：明显敏感内容不写入 L1，或脱敏。 */
 function sanitizeForMemory(content) {
@@ -47,25 +46,25 @@ function parseSummaryAndFacts(text) {
     return { summary, facts };
 }
 export async function flushToL1(params) {
-    const apiKey = getApiKey(params.config);
-    if (!apiKey) {
-        return { summary: "", factCount: 0 };
-    }
     const convText = params.messages
         .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
         .join("\n\n");
     if (!convText.trim()) {
         return { summary: "", factCount: 0 };
     }
-    const client = new Anthropic({ apiKey });
-    const model = params.config.model.replace("anthropic/", "");
-    const response = await client.messages.create({
-        model,
-        max_tokens: 1024,
-        messages: [{ role: "user", content: `${EXTRACT_PROMPT}\n\n---\n\n${convText}` }],
-    });
-    const textBlock = response.content.find((b) => b.type === "text");
-    const text = textBlock && "text" in textBlock ? textBlock.text : "";
+    let text = "";
+    try {
+        const client = getLLMClient(params.config);
+        const response = await client.createMessage({
+            max_tokens: 1024,
+            messages: [{ role: "user", content: `${EXTRACT_PROMPT}\n\n---\n\n${convText}` }],
+        });
+        const textBlock = response.content.find((b) => b.type === "text");
+        text = textBlock && "text" in textBlock ? textBlock.text : "";
+    }
+    catch {
+        return { summary: "", factCount: 0 };
+    }
     const { summary: rawSummary, facts: rawFacts } = parseSummaryAndFacts(text);
     const summary = sanitizeForMemory(rawSummary);
     const facts = rawFacts.map(sanitizeForMemory).filter(Boolean);
@@ -117,23 +116,25 @@ export async function flushToL1(params) {
 }
 /** WO-505: 仅生成 L0 会话内摘要（不写 L1），供多轮时「每 M 轮摘要 + 最近轮」使用。 */
 export async function generateL0Summary(params) {
-    const apiKey = getApiKey(params.config);
-    if (!apiKey || params.messages.length === 0)
+    if (params.messages.length === 0)
         return "";
     const convText = params.messages
         .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
         .join("\n\n");
     if (!convText.trim())
         return "";
-    const client = new Anthropic({ apiKey });
-    const model = params.config.model.replace("anthropic/", "");
-    const response = await client.messages.create({
-        model,
-        max_tokens: 512,
-        messages: [{ role: "user", content: `${EXTRACT_PROMPT}\n\n---\n\n${convText}` }],
-    });
-    const textBlock = response.content.find((b) => b.type === "text");
-    const text = textBlock && "text" in textBlock ? textBlock.text : "";
-    const { summary } = parseSummaryAndFacts(text);
-    return summary;
+    try {
+        const client = getLLMClient(params.config);
+        const response = await client.createMessage({
+            max_tokens: 512,
+            messages: [{ role: "user", content: `${EXTRACT_PROMPT}\n\n---\n\n${convText}` }],
+        });
+        const textBlock = response.content.find((b) => b.type === "text");
+        const text = textBlock && "text" in textBlock ? textBlock.text : "";
+        const { summary } = parseSummaryAndFacts(text);
+        return summary;
+    }
+    catch {
+        return "";
+    }
 }

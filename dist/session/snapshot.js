@@ -18,6 +18,7 @@ export async function writeSnapshot(workspaceDir, sessionId, data) {
         sessionId,
         sessionGoal: data.sessionGoal,
         sessionSummary: data.sessionSummary,
+        sessionType: data.sessionType,
         messages: data.messages,
         savedAt: new Date().toISOString(),
     };
@@ -39,7 +40,7 @@ export async function readSnapshot(workspaceDir, sessionId) {
         return null;
     }
 }
-/** WO-512: 列出最近快照（sessionId + savedAt），按保存时间倒序。 */
+/** WO-512 / Phase 10 WO-1004: 列出最近快照（sessionId + savedAt + sessionType），按保存时间倒序。 */
 export async function listSnapshots(workspaceDir, limit = 50) {
     const dir = path.join(workspaceDir, ".rzeclaw", SNAPSHOT_DIR);
     const { readdir, stat } = await import("node:fs/promises");
@@ -58,6 +59,7 @@ export async function listSnapshots(workspaceDir, limit = 50) {
                 withTime.push({
                     sessionId,
                     savedAt: data.savedAt ?? new Date(st.mtime).toISOString(),
+                    sessionType: data.sessionType,
                 });
             }
             catch {

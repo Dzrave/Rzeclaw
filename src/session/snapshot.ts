@@ -7,11 +7,14 @@ import path from "node:path";
 
 export type SnapshotMessage = { role: "user" | "assistant"; content: string };
 
+/** Phase 10: sessionType 为 dev | knowledge | pm | swarm_manager | general */
 export type SessionSnapshot = {
   version: 1;
   sessionId: string;
   sessionGoal?: string;
   sessionSummary?: string;
+  /** Phase 10 WO-1004 */
+  sessionType?: string;
   messages: SnapshotMessage[];
   savedAt: string;
 };
@@ -37,6 +40,7 @@ export async function writeSnapshot(
     sessionId,
     sessionGoal: data.sessionGoal,
     sessionSummary: data.sessionSummary,
+    sessionType: data.sessionType,
     messages: data.messages,
     savedAt: new Date().toISOString(),
   };
@@ -65,16 +69,16 @@ export async function readSnapshot(
   }
 }
 
-/** WO-512: 列出最近快照（sessionId + savedAt），按保存时间倒序。 */
+/** WO-512 / Phase 10 WO-1004: 列出最近快照（sessionId + savedAt + sessionType），按保存时间倒序。 */
 export async function listSnapshots(
   workspaceDir: string,
   limit: number = 50
-): Promise<Array<{ sessionId: string; savedAt: string }>> {
+): Promise<Array<{ sessionId: string; savedAt: string; sessionType?: string }>> {
   const dir = path.join(workspaceDir, ".rzeclaw", SNAPSHOT_DIR);
   const { readdir, stat } = await import("node:fs/promises");
   try {
     const files = await readdir(dir);
-    const withTime: Array<{ sessionId: string; savedAt: string }> = [];
+    const withTime: Array<{ sessionId: string; savedAt: string; sessionType?: string }> = [];
     for (const f of files) {
       if (!f.endsWith(".json")) continue;
       const sessionId = f.slice(0, -5);
@@ -86,6 +90,7 @@ export async function listSnapshots(
         withTime.push({
           sessionId,
           savedAt: data.savedAt ?? new Date(st.mtime).toISOString(),
+          sessionType: data.sessionType,
         });
       } catch {
         // skip invalid

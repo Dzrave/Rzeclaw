@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Workspace and runtime data (do not commit user data)
+workspace/
+*.log
+.rzeclaw/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Optional: keep example config in repo, ignore local overrides
+# rzeclaw.json
+# .rzeclaw.json

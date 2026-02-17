@@ -4,9 +4,8 @@
 
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import Anthropic from "@anthropic-ai/sdk";
 import type { RzeclawConfig } from "../config.js";
-import { getApiKey } from "../config.js";
+import { getLLMClient } from "../llm/index.js";
 import type { Message } from "../agent/context.js";
 import type { IMemoryStore } from "./store-interface.js";
 import type { MemoryEntryInsert, Provenance } from "./types.js";
@@ -62,11 +61,6 @@ export async function flushToL1(params: {
   workspaceId?: string;
   taskHint?: string;
 }): Promise<{ summary: string; factCount: number }> {
-  const apiKey = getApiKey(params.config);
-  if (!apiKey) {
-    return { summary: "", factCount: 0 };
-  }
-
   const convText = params.messages
     .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
     .join("\n\n");
@@ -74,17 +68,19 @@ export async function flushToL1(params: {
     return { summary: "", factCount: 0 };
   }
 
-  const client = new Anthropic({ apiKey });
-  const model = params.config.model.replace("anthropic/", "");
+  let text = "";
+  try {
+    const client = getLLMClient(params.config);
+    const response = await client.createMessage({
+      max_tokens: 1024,
+      messages: [{ role: "user", content: `${EXTRACT_PROMPT}\n\n---\n\n${convText}` }],
+    });
+    const textBlock = response.content.find((b) => b.type === "text");
+    text = textBlock && "text" in textBlock ? textBlock.text : "";
+  } catch {
+    return { summary: "", factCount: 0 };
+  }
 
-  const response = await client.messages.create({
-    model,
-    max_tokens: 1024,
-    messages: [{ role: "user", content: `${EXTRACT_PROMPT}\n\n---\n\n${convText}` }],
-  });
-
-  const textBlock = response.content.find((b) => b.type === "text");
-  const text = textBlock && "text" in textBlock ? textBlock.text : "";
   const { summary: rawSummary, facts: rawFacts } = parseSummaryAndFacts(text);
   const summary = sanitizeForMemory(rawSummary);
   const facts = rawFacts.map(sanitizeForMemory).filter(Boolean);
@@ -145,25 +141,24 @@ export async function generateL0Summary(params: {
   config: RzeclawConfig;
   messages: Message[];
 }): Promise<string> {
-  const apiKey = getApiKey(params.config);
-  if (!apiKey || params.messages.length === 0) return "";
+  if (params.messages.length === 0) return "";
 
   const convText = params.messages
     .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
     .join("\n\n");
   if (!convText.trim()) return "";
 
-  const client = new Anthropic({ apiKey });
-  const model = params.config.model.replace("anthropic/", "");
-
-  const response = await client.messages.create({
-    model,
-    max_tokens: 512,
-    messages: [{ role: "user", content: `${EXTRACT_PROMPT}\n\n---\n\n${convText}` }],
-  });
-
-  const textBlock = response.content.find((b) => b.type === "text");
-  const text = textBlock && "text" in textBlock ? textBlock.text : "";
-  const { summary } = parseSummaryAndFacts(text);
-  return summary;
+  try {
+    const client = getLLMClient(params.config);
+    const response = await client.createMessage({
+      max_tokens: 512,
+      messages: [{ role: "user", content: `${EXTRACT_PROMPT}\n\n---\n\n${convText}` }],
+    });
+    const textBlock = response.content.find((b) => b.type === "text");
+    const text = textBlock && "text" in textBlock ? textBlock.text : "";
+    const { summary } = parseSummaryAndFacts(text);
+    return summary;
+  } catch {
+    return "";
+  }
 }

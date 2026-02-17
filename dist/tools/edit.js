@@ -21,9 +21,11 @@ export const editTool = {
             path: { type: "string", description: "Relative path from workspace root" },
             old_string: { type: "string", description: "Exact string to replace" },
             new_string: { type: "string", description: "Replacement string" },
+            dryRun: { type: "boolean", description: "If true, only return diff summary without writing (WO-IDE-011)" },
         },
         required: ["path", "old_string", "new_string"],
     },
+    supportsDryRun: true,
     async handler(args, cwd) {
         const rel = args.path;
         const oldStr = args.old_string;
@@ -41,6 +43,7 @@ export const editTool = {
         if (!full.startsWith(path.resolve(cwd))) {
             return { ok: false, error: "Path must be inside workspace" };
         }
+        const dryRun = args.dryRun === true;
         try {
             const text = await readFile(full, "utf-8");
             const updated = applySearchReplace(text, oldStr, newStr);
@@ -52,8 +55,18 @@ export const editTool = {
                     suggestion: "Copy the exact string from the file (including spaces/newlines); old_string must match exactly.",
                 };
             }
+            if (dryRun) {
+                return {
+                    ok: true,
+                    content: `[dry-run] Would edit ${rel}: replace old_string (${oldStr.length} chars) with new_string (${newStr.length} chars). First line of old: "${oldStr.split("\n")[0]?.slice(0, 50) ?? ""}..."`,
+                };
+            }
             await writeFile(full, updated, "utf-8");
-            return { ok: true, content: `Updated ${rel}` };
+            return {
+                ok: true,
+                content: `Updated ${rel}`,
+                undoHint: { tool: "edit", args: { path: rel, old_string: newStr, new_string: oldStr } },
+            };
         }
         catch (e) {
             const msg = e instanceof Error ? e.message : String(e);

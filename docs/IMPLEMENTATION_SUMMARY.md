@@ -15,8 +15,9 @@
 | **Phase 4 必做** | WO-401, 402, 404, 405 | ✅ 已完成 | 目标锚定、反思、Bootstrap、Prompt 建议 |
 | **Phase 4 可选** | WO-403, 406, 407 | ✅ 已完成 | 轻量规划、会话快照、冷归档与审计查询 |
 | **Phase 5** | WO-501～514 | ✅ 已完成 | 验收、单测、配置文档、L0 每 M 轮摘要、规划进度、冷归档触发、审计/指标导出、健康检查、敏感信息过滤、访问控制文档、会话列表、引用可解释性、多 workspace 文档 |
+| **Phase 6** | WO-601～626 | ✅ 已完成 | Canvas、Skill/MCP、工具合并与路由、Heartbeat、主动推理与多触发、安全与配置文档 |
 
-**合计**：Phase 0～4 共 **22 个工单** + Phase 5 共 **14 个工单**，已全部实现。
+**合计**：Phase 0～4 共 **22 个工单** + Phase 5 共 **14 个工单** + Phase 6 共 **26 个工单**，已全部实现。
 
 ---
 
@@ -108,16 +109,33 @@
 
 ---
 
-## 八、配置与入口速查
+## 八、Phase 6：自主性、Skill/MCP、Heartbeat 与主动模式（已实现）
+
+| 工单 | 产出/要点 |
+|------|------------|
+| **WO-601/602** | `src/canvas/types.ts`、`persist.ts`：CurrentPlan/Step/Artifact、readCanvas/writeCanvas/updateCanvas（`.rzeclaw/canvas/current.json`）。 |
+| **WO-603** | Gateway：canvas.get、canvas.update。 |
+| **WO-604** | runAgentLoop 规划时初始化 Canvas，每轮工具后更新 steps/currentStepIndex。 |
+| **WO-605～608** | `src/skills/`：Skill 类型、loadSkillsFromDir（白名单目录）、runSkillScript、skillsToToolDefs；config.skills.enabled/dir。 |
+| **WO-609～612** | `src/mcp/`：config.mcp.servers、connectAndListTools、callMcpTool、mcpToolsToToolDefs（mcp_ 前缀）；依赖 @modelcontextprotocol/sdk。 |
+| **WO-613/614** | `src/tools/merged.ts` getMergedTools（CORE+Skills+MCP）；runAgentLoop 与 Gateway 使用合并工具与按名路由。 |
+| **WO-615～620** | config.heartbeat.intervalMinutes/checklistPath；`src/heartbeat/` Orient/Check/Act/Record；Gateway 定时触发 + heartbeat.tick。 |
+| **WO-621～624** | `src/proactive/`：tasks.json、runProactiveInference（proposals/suggestions、isProposalOnly）；Gateway proactive.suggest；多触发（定时/显式）。 |
+| **WO-625/626** | Skill 仅从配置目录加载；CONFIG_REFERENCE 补充 skills、mcp、heartbeat。 |
+
+---
+
+## 九、配置与入口速查
 
 - **配置**：`rzeclaw.json` / `.rzeclaw.json`，见 `docs/CONFIG_REFERENCE.md` 与 `src/config.ts`。  
   - memory.enabled、workspaceId、coldAfterDays  
   - contextWindowRounds、reflectionToolCallInterval、**summaryEveryRounds**  
   - evolution.bootstrapDocPath、planning.enabled / maxSteps / complexThresholdChars  
+  - **skills.enabled / dir**、**mcp.enabled / servers**、**heartbeat.intervalMinutes / checklistPath**
 
 - **CLI**：`rzeclaw agent [message]`（-m、--restore）；`rzeclaw gateway`；`rzeclaw archive-cold`；`rzeclaw audit-export`（--summary）；`rzeclaw metrics-export`；`rzeclaw health`。  
 
-- **Gateway**：chat（params.workspace、响应 citedMemoryIds）、session.getOrCreate、session.restore、session.saveSnapshot、**session.list**、**health**、tools.call、tools.list。  
+- **Gateway**：chat、session.getOrCreate/restore/saveSnapshot/list、health、tools.call、tools.list、**canvas.get/canvas.update**、**heartbeat.tick**、**proactive.suggest**。  
 
 - **记忆与会话**：  
   - 热存储：`workspace/.rzeclaw/memory/<workspaceId>.jsonl`（或 memory.jsonl）  
@@ -127,9 +145,10 @@
 
 ---
 
-## 九、与设计文档的对应关系
+## 十、与设计文档的对应关系
 
 - **《优化与自我进化设计》**：多轮效率（L0 窗口与摘要）、工具优化（描述/校验/压缩/意图表）、目标锚定、执行后反思、错误恢复建议、Bootstrap 文档、Prompt 建议文件、轻量规划、会话快照等，均已覆盖。  
 - **《长期记忆系统设计》**：L0/L1/L2 分层、Provenance、只增不篡改、任务识别与任务感知检索、supersedes/validity、workspace 隔离、写入审计、冷归档与审计查询，均已覆盖。  
+- **《自主性、Skill/MCP 与主动模式设计》**：Skill 抽象与本地加载、MCP 客户端与工具合并/路由、Canvas 状态与 Gateway API、Agent 写回 Canvas、Heartbeat 配置与 Orient/Check/Act/Record、统一主动推理管道与多触发源、提议与执行分离，均已覆盖。
 
-实现计划中的 **Phase 0～4 共 22 个工单** 与 **Phase 5 共 14 个工单** 已按依赖顺序完成，逻辑与设计保持一致，可作为当前版本的实现基线。
+实现计划中的 **Phase 0～4 共 22 个工单**、**Phase 5 共 14 个工单** 与 **Phase 6 共 26 个工单** 已按依赖顺序完成，逻辑与设计保持一致，可作为当前版本的实现基线。

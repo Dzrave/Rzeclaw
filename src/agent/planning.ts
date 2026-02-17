@@ -2,9 +2,8 @@
  * WO-403: 轻量规划。对复杂请求先让模型输出步骤列表（不执行），再在上下文中按步执行。
  */
 
-import Anthropic from "@anthropic-ai/sdk";
 import type { RzeclawConfig } from "../config.js";
-import { getApiKey } from "../config.js";
+import { getLLMClient } from "../llm/index.js";
 
 const PLAN_PROMPT = `你仅需输出「步骤列表」，每行一步，格式为：1. 第一步 2. 第二步 … 不要执行任何工具，不要解释其他内容。`;
 
@@ -30,26 +29,25 @@ export async function fetchPlanSteps(
   config: RzeclawConfig,
   userMessage: string
 ): Promise<string> {
-  const apiKey = getApiKey(config);
-  if (!apiKey) return "";
+  let text = "";
+  try {
+    const client = getLLMClient(config);
+    const response = await client.createMessage({
+      max_tokens: 1024,
+      messages: [
+        {
+          role: "user",
+          content: `${PLAN_PROMPT}\n\n用户请求：\n${userMessage}`,
+        },
+      ],
+    });
 
-  const client = new Anthropic({ apiKey });
-  const model = config.model.replace("anthropic/", "");
-
-  const response = await client.messages.create({
-    model,
-    max_tokens: 1024,
-    messages: [
-      {
-        role: "user",
-        content: `${PLAN_PROMPT}\n\n用户请求：\n${userMessage}`,
-      },
-    ],
-  });
-
-  const textBlock = response.content.find((b) => b.type === "text");
-  const text = textBlock && "text" in textBlock ? textBlock.text.trim() : "";
-  if (!text) return "";
+    const textBlock = response.content.find((b) => b.type === "text");
+    text = textBlock && "text" in textBlock ? textBlock.text.trim() : "";
+    if (!text) return "";
+  } catch {
+    return "";
+  }
 
   const maxSteps = config.planning?.maxSteps ?? 10;
   const lines = text

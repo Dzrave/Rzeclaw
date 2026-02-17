@@ -32,6 +32,7 @@ export async function retrieve(store, query, options = {}) {
         content_type: options.content_type,
         validity: options.validity ?? "active",
         created_after: options.created_after,
+        layer: options.layer,
     };
     let entries = await store.query_by_condition(conditions);
     if (options.includeCold && options.coldStore) {

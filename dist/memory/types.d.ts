@@ -1,7 +1,7 @@
 /**
  * Memory unit schema (L1/L2). Immutable id; append-only; provenance for traceability.
  */
-export type ContentType = "fact" | "summary" | "preference" | "task_outcome" | "tool_experience";
+export type ContentType = "fact" | "summary" | "preference" | "task_outcome" | "tool_experience" | "document";
 export type Validity = "active" | "superseded" | "contradicted";
 export type SourceType = "user" | "model" | "tool" | "system";
 export interface Provenance {
@@ -11,6 +11,10 @@ export interface Provenance {
     message_id?: string;
     quote_start?: number;
     quote_end?: number;
+    /** Phase 11: 摄取来源文件路径 */
+    source_path?: string;
+    /** Phase 11: 摄取批次 id */
+    ingest_batch_id?: string;
 }
 export interface MemoryEntry {
     id: string;

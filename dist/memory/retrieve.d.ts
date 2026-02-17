@@ -9,10 +9,10 @@ export type RetrieveOptions = {
     limit?: number;
     content_type?: string;
     validity?: string;
-    /** Current task hint for task-aware relevance scoring and optional filter */
     task_hint?: string;
     created_after?: string;
-    /** WO-407: 为 true 且传入 coldStore 时合并冷存储检索结果 */
+    /** Phase 11 WO-1105: 仅 L1、仅 L2 或不过滤 */
+    layer?: "L1" | "L2";
     includeCold?: boolean;
     coldStore?: IMemoryStore;
 };

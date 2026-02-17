@@ -1,8 +1,7 @@
 /**
  * WO-403: 轻量规划。对复杂请求先让模型输出步骤列表（不执行），再在上下文中按步执行。
  */
-import Anthropic from "@anthropic-ai/sdk";
-import { getApiKey } from "../config.js";
+import { getLLMClient } from "../llm/index.js";
 const PLAN_PROMPT = `你仅需输出「步骤列表」，每行一步，格式为：1. 第一步 2. 第二步 … 不要执行任何工具，不要解释其他内容。`;
 const COMPLEX_PATTERN = /先|再|然后|步骤|第一步|分步|依次|首先|接着|最后|多个|几个文件|多个命令/i;
 /**
@@ -20,25 +19,26 @@ export function isComplexRequest(userMessage, config) {
  * 调用模型获取步骤列表（仅文本，不调用工具）。返回格式化后的步骤文本，失败或空则返回空串。
  */
 export async function fetchPlanSteps(config, userMessage) {
-    const apiKey = getApiKey(config);
-    if (!apiKey)
+    let text = "";
+    try {
+        const client = getLLMClient(config);
+        const response = await client.createMessage({
+            max_tokens: 1024,
+            messages: [
+                {
+                    role: "user",
+                    content: `${PLAN_PROMPT}\n\n用户请求：\n${userMessage}`,
+                },
+            ],
+        });
+        const textBlock = response.content.find((b) => b.type === "text");
+        text = textBlock && "text" in textBlock ? textBlock.text.trim() : "";
+        if (!text)
+            return "";
+    }
+    catch {
         return "";
-    const client = new Anthropic({ apiKey });
-    const model = config.model.replace("anthropic/", "");
-    const response = await client.messages.create({
-        model,
-        max_tokens: 1024,
-        messages: [
-            {
-                role: "user",
-                content: `${PLAN_PROMPT}\n\n用户请求：\n${userMessage}`,
-            },
-        ],
-    });
-    const textBlock = response.content.find((b) => b.type === "text");
-    const text = textBlock && "text" in textBlock ? textBlock.text.trim() : "";
-    if (!text)
-        return "";
+    }
     const maxSteps = config.planning?.maxSteps ?? 10;
     const lines = text
         .split("\n")

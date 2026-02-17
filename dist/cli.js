@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { loadConfig, getApiKey } from "./config.js";
+import { loadConfig, isLlmReady } from "./config.js";
 import { createGatewayServer } from "./gateway/server.js";
 import { runAgentLoop } from "./agent/loop.js";
 import { createStore } from "./memory/store-jsonl.js";
@@ -12,8 +12,11 @@ import { readSnapshot } from "./session/snapshot.js";
 import { archiveCold } from "./memory/cold-archive.js";
 import { queryAuditLog, exportAuditLog } from "./memory/audit-query.js";
 import { readSessionMetricsFromDir } from "./observability/metrics.js";
+import { generateReport, writeSuggestionsFile } from "./diagnostic/index.js";
 import { mkdir, access } from "node:fs/promises";
 import path from "node:path";
+import { runSelfCheck, getRepairSteps } from "./self-check.js";
+import { runUninstall } from "./uninstall.js";
 const program = new Command();
 program
     .name("rzeclaw")
@@ -36,6 +39,7 @@ program
     .argument("[message]", "User message")
     .option("-m, --message <text>", "Message (alternative to positional)")
     .option("-r, --restore <sessionId>", "Restore session from snapshot; message is the next user input")
+    .option("--privacy", "WO-SEC-006: Privacy mode — do not write to L1 memory or session summary")
     .action(async (posMessage, opts) => {
     const config = loadConfig();
     const message = opts.message ?? posMessage;
@@ -43,9 +47,8 @@ program
         console.error("Provide a message: rzeclaw agent \"your question\"");
         process.exit(2);
     }
-    const apiKey = getApiKey(config);
-    if (!apiKey) {
-        console.error("Set ANTHROPIC_API_KEY or configure apiKeyEnv in config.");
+    if (!isLlmReady(config)) {
+        console.error("LLM 未就绪：请为当前提供商设置对应 API Key（如 ANTHROPIC_API_KEY、DEEPSEEK_API_KEY、MINIMAX_API_KEY），或使用本地 Ollama（无需 Key）。可在 rzeclaw.json 中配置 llm.provider 与 llm.apiKeyEnv。");
         process.exit(1);
     }
     const workspace = path.resolve(config.workspace);
@@ -61,16 +64,18 @@ program
             sessionId = snapshot.sessionId;
         }
     }
+    const privacyMode = !!opts.privacy;
     const { content, messages, sessionId: outSessionId } = await runAgentLoop({
         config,
         userMessage: message,
         sessionMessages,
         sessionId,
         sessionGoal,
+        sessionFlags: privacyMode ? { privacy: true } : undefined,
         onText: (chunk) => process.stdout.write(chunk),
     });
     const finalSessionId = outSessionId;
-    if (config.memory?.enabled && messages.length >= 2) {
+    if (config.memory?.enabled && messages.length >= 2 && !privacyMode) {
         const store = createStore(workspace, config.memory.workspaceId);
         const lastUserMessage = typeof message === "string" ? message : "";
         const { summary, factCount } = await flushToL1({
@@ -163,6 +168,19 @@ program
     console.log(JSON.stringify(metrics, null, 2));
 });
 program
+    .command("diagnostic-report")
+    .description("Phase 12: Generate diagnostic report and self-improvement suggestions")
+    .option("-w, --workspace <path>", "Workspace path (default from config)")
+    .option("-d, --days <number>", "Report interval in days", (v) => parseInt(v, 10) || 7)
+    .action(async (opts) => {
+    const config = loadConfig();
+    const workspace = path.resolve(opts.workspace ?? config.workspace);
+    const days = opts.days ?? config.diagnostic?.intervalDays ?? 7;
+    const { report, filePath } = await generateReport(config, { workspace, days });
+    const suggestionsPath = await writeSuggestionsFile(workspace, report);
+    console.log(JSON.stringify({ report, filePath, suggestionsPath }, null, 2));
+});
+program
     .command("health")
     .description("WO-509: Check config, workspace writable, API key set")
     .action(async () => {
@@ -182,10 +200,116 @@ program
             // leave false
         }
     }
-    const apiKeySet = !!getApiKey(config);
-    const ok = workspaceWritable && apiKeySet;
-    console.log(JSON.stringify({ ok, configLoaded: true, workspaceWritable, apiKeySet }, null, 2));
+    const llmReady = isLlmReady(config);
+    const ok = workspaceWritable && llmReady;
+    console.log(JSON.stringify({ ok, configLoaded: true, workspaceWritable, llmReady }, null, 2));
     process.exit(ok ? 0 : 1);
+});
+program
+    .command("self-check")
+    .description("自检运行环境、依赖、构建与配置；可配合 --repair 自动修复")
+    .option("--repair", "发现问题时执行修复（npm install、npm run build）")
+    .option("--reset-config", "修复时从 rzeclaw.example.json 恢复 rzeclaw.json（与 --repair 同用）")
+    .option("--reset-env", "修复时从 .env.example 恢复 .env（与 --repair 同用）")
+    .option("-j, --json", "输出 JSON 结果")
+    .action(async (opts) => {
+    const projectRoot = process.cwd();
+    const result = await runSelfCheck(projectRoot);
+    if (opts.json) {
+        console.log(JSON.stringify(result, null, 2));
+    }
+    else {
+        console.log("自检结果:");
+        for (const item of result.items) {
+            console.log(`  [${item.ok ? "OK" : "FAIL"}] ${item.id}: ${item.message}`);
+            if (!item.ok && item.repair)
+                console.log(`      修复建议: ${item.repair}`);
+        }
+        console.log(result.ok ? "\n全部通过。" : "\n存在异常，可运行 rzeclaw repair 或 rzeclaw self-check --repair 尝试修复。");
+    }
+    if (opts.repair && !result.ok) {
+        const steps = getRepairSteps({
+            install: true,
+            build: true,
+            resetConfig: opts.resetConfig === true,
+            resetEnv: opts.resetEnv === true,
+        });
+        console.log("\n执行修复...");
+        for (const step of steps) {
+            try {
+                console.log(`  [${step.id}] ${step.description}`);
+                await step.run();
+            }
+            catch (e) {
+                console.error(`  [${step.id}] 失败:`, e instanceof Error ? e.message : e);
+                process.exit(1);
+            }
+        }
+        console.log("修复完成。可再次运行 rzeclaw self-check 验证。");
+    }
+    process.exit(result.ok ? 0 : 1);
+});
+program
+    .command("repair")
+    .description("执行修复：npm install、npm run build，可选恢复示例配置")
+    .option("--reset-config", "从 rzeclaw.example.json 覆盖恢复 rzeclaw.json")
+    .option("--reset-env", "从 .env.example 覆盖恢复 .env")
+    .option("--no-install", "跳过 npm install")
+    .option("--no-build", "跳过 npm run build")
+    .action(async (opts) => {
+    const steps = getRepairSteps({
+        install: opts.install !== false,
+        build: opts.build !== false,
+        resetConfig: opts.resetConfig === true,
+        resetEnv: opts.resetEnv === true,
+    });
+    console.log("修复步骤:");
+    for (const step of steps) {
+        try {
+            console.log(`  [${step.id}] ${step.description}`);
+            await step.run();
+        }
+        catch (e) {
+            console.error(`  [${step.id}] 失败:`, e instanceof Error ? e.message : e);
+            process.exit(1);
+        }
+    }
+    console.log("修复完成。");
+});
+program
+    .command("uninstall")
+    .description("卸载：移除 node_modules 与 dist；可选移除配置与本地数据（默认均保留）")
+    .option("--remove-config", "同时移除 rzeclaw.json / .rzeclaw.json")
+    .option("--remove-env", "同时移除 .env")
+    .option("--remove-rzeclaw-data", "同时移除工作区内的 .rzeclaw 目录（记忆、快照等）")
+    .option("--remove-workspace", "同时移除整个工作区目录（慎用）")
+    .option("-y, --yes", "不提示，直接执行")
+    .option("-j, --json", "仅输出将执行的操作（不实际删除）")
+    .action(async (opts) => {
+    const projectRoot = process.cwd();
+    const options = {
+        removeWorkspace: opts.removeWorkspace === true,
+        removeConfig: opts.removeConfig === true,
+        removeEnv: opts.removeEnv === true,
+        removeRzeclawData: opts.removeRzeclawData === true,
+        yes: opts.yes === true,
+    };
+    const result = runUninstall(projectRoot, options);
+    if (opts.json) {
+        console.log(JSON.stringify({
+            willRemove: ["node_modules", "dist"].concat(options.removeEnv ? [".env"] : [], options.removeConfig ? ["rzeclaw.json", ".rzeclaw.json"] : [], options.removeRzeclawData ? ["workspace/.rzeclaw"] : [], options.removeWorkspace ? ["workspace"] : []),
+            kept: result.kept,
+            errors: result.errors,
+        }, null, 2));
+        return;
+    }
+    console.log("已移除:", result.removed.length ? result.removed.join(", ") : "无");
+    if (result.kept.length)
+        console.log("已保留:", result.kept.join(", "));
+    if (result.errors.length) {
+        console.error("错误:", result.errors.join("; "));
+        process.exit(1);
+    }
 });
 export async function run() {
     await program.parseAsync(process.argv);

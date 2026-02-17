@@ -10,6 +10,16 @@ export declare function runAgentLoop(params: {
     sessionGoal?: string;
     /** Optional L0 summary for long sessions (summary + recent 2 rounds) */
     sessionSummary?: string;
+    /** Phase 10: 会话类型，用于注入角色片段 */
+    sessionType?: string;
+    /** Phase 10: 蜂群管理时的团队 id，用于注入协调范围 */
+    teamId?: string;
+    /** WO-SEC-006: 隐私会话标记；为 true 时调用方应不写入 L1、不持久化快照 */
+    sessionFlags?: {
+        privacy?: boolean;
+    };
+    /** WO-SEC-010: 本会话已授权的 scope 列表（如 ["file_write"]），同 scope 不再弹确认 */
+    sessionGrantedScopes?: string[];
     onText?: (chunk: string) => void;
 }): Promise<{
     content: string;

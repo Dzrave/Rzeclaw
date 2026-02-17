@@ -1,5 +1,6 @@
-import { writeFile, mkdir } from "node:fs/promises";
+import { writeFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { existsSync } from "node:fs";
 import type { ToolDef, ToolResult } from "./types.js";
 
 export const writeTool: ToolDef = {
@@ -15,9 +16,11 @@ export const writeTool: ToolDef = {
     properties: {
       path: { type: "string", description: "Relative path from workspace root" },
       content: { type: "string", description: "File content" },
+      dryRun: { type: "boolean", description: "If true, only return what would be written without writing (WO-IDE-011)" },
     },
     required: ["path", "content"],
   },
+  supportsDryRun: true,
   async handler(args, cwd): Promise<ToolResult> {
     const rel = args.path as string;
     const content = args.content as string;
@@ -31,10 +34,30 @@ export const writeTool: ToolDef = {
     if (!full.startsWith(path.resolve(cwd))) {
       return { ok: false, error: "Path must be inside workspace" };
     }
+    const dryRun = args.dryRun === true;
+    if (dryRun) {
+      const firstLine = content.split("\n")[0]?.slice(0, 60) ?? "";
+      return { ok: true, content: `[dry-run] Would write ${rel} (${content.length} chars, ${content.split("\n").length} lines). First line: "${firstLine}${content.length > 60 ? "..." : ""}"` };
+    }
+    let previousContent: string | undefined;
+    if (existsSync(full)) {
+      try {
+        previousContent = await readFile(full, "utf-8");
+      } catch {
+        // ignore
+      }
+    }
     try {
       await mkdir(path.dirname(full), { recursive: true });
       await writeFile(full, content, "utf-8");
-      return { ok: true, content: `Wrote ${rel}` };
+      const result: ToolResult = { ok: true, content: `Wrote ${rel}` };
+      if (previousContent !== undefined) {
+        (result as { undoHint?: { tool: string; args: Record<string, unknown> } }).undoHint = {
+          tool: "write",
+          args: { path: rel, content: previousContent },
+        };
+      }
+      return result;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       return { ok: false, error: msg };
