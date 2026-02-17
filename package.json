@@ -41,5 +41,10 @@
     "bash",
     "automation"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dzrave/Rzeclaw.git"
+  },
+  "homepage": "https://github.com/Dzrave/Rzeclaw#readme"
 }

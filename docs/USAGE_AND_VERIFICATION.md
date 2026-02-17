@@ -86,7 +86,7 @@
 
 1. **构建与配置**  
    ```bash
-   cd /path/to/Rzeclaw
+   git clone https://github.com/Dzrave/Rzeclaw.git && cd Rzeclaw
    npm install
    npm run build
    set ANTHROPIC_API_KEY=sk-ant-...

@@ -24,7 +24,7 @@
 |----|------|
 | **不要提交** | 确保未提交 `.env`、真实 API Key、`dist/`（可构建）、`node_modules/`。.gitignore 已覆盖。 |
 | **仓库描述** | 在 GitHub 仓库设置中填写简短描述与 Topics（如 ai, assistant, claude, automation）。 |
-| **README 中的 clone URL** | 上传后把 README 里 `https://github.com/<owner>/Rzeclaw.git` 的 `<owner>` 改为实际用户名或组织。 |
+| **README 中的 clone URL** | 已设置为 `https://github.com/Dzrave/Rzeclaw`。 |
 
 ---
 

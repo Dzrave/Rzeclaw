@@ -21,14 +21,14 @@
 
 ## 一条龙安装与配置、启动
 
-**环境**：Node ≥18，需 [Anthropic API Key](https://console.anthropic.com/)。以下示例中的 `<owner>` 请替换为你的 GitHub 用户名或组织名。
+**环境**：Node ≥18，需 [Anthropic API Key](https://console.anthropic.com/)。
 
 ### 方式 A：一键脚本（推荐）
 
 **Windows（PowerShell）：**
 
 ```powershell
-git clone https://github.com/<owner>/Rzeclaw.git
+git clone https://github.com/Dzrave/Rzeclaw.git
 cd Rzeclaw
 .\scripts\setup.ps1
 # 按提示编辑 .env 填入 ANTHROPIC_API_KEY，然后启动
@@ -37,7 +37,7 @@ cd Rzeclaw
 **macOS / Linux：**
 
 ```bash
-git clone https://github.com/<owner>/Rzeclaw.git
+git clone https://github.com/Dzrave/Rzeclaw.git
 cd Rzeclaw
 chmod +x scripts/setup.sh
 ./scripts/setup.sh
@@ -49,7 +49,7 @@ chmod +x scripts/setup.sh
 ### 方式 B：npm 命令
 
 ```bash
-git clone https://github.com/<owner>/Rzeclaw.git
+git clone https://github.com/Dzrave/Rzeclaw.git
 cd Rzeclaw
 npm run setup
 # 复制并编辑配置（可选）
