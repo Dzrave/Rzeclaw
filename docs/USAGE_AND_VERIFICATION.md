@@ -84,13 +84,14 @@
 
 ## 四、最小验证步骤（复制即用）
 
-1. **构建与配置**  
+1. **安装与配置**  
    ```bash
    git clone https://github.com/Dzrave/Rzeclaw.git && cd Rzeclaw
-   npm install
-   npm run build
-   set ANTHROPIC_API_KEY=sk-ant-...
+   npm run setup
+   node rzeclaw.mjs setup
    ```
+   配置向导会检查依赖与构建，并提示：API Key、模型选择（Anthropic/DeepSeek/Ollama）、命令终端是否需确认、是否启动 Gateway。按提示完成即可。  
+   若跳过向导，可手动设置：`set ANTHROPIC_API_KEY=sk-ant-...`（Windows）或编辑 `.env`。
 
 2. **CLI 验证**  
    ```bash

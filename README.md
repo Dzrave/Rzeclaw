@@ -21,9 +21,13 @@
 
 ## 一条龙安装与配置、启动
 
-**环境**：Node ≥18，需 [Anthropic API Key](https://console.anthropic.com/)。
+**流程**：安装依赖与构建 → **配置向导**（API Key、模型选择、命令终端策略、是否启动 Gateway）→ 启动使用。
+
+**环境**：Node ≥18，需 [Anthropic API Key](https://console.anthropic.com/)（若选 Ollama 本地模型则无需）。
 
 ### 方式 A：一键脚本（推荐）
+
+脚本会依次：检查 Node 版本 → 安装依赖 → 构建 → 创建 `.env` / `rzeclaw.json`（若不存在）→ **启动配置向导**。
 
 **Windows（PowerShell）：**
 
@@ -31,7 +35,6 @@
 git clone https://github.com/Dzrave/Rzeclaw.git
 cd Rzeclaw
 .\scripts\setup.ps1
-# 按提示编辑 .env 填入 ANTHROPIC_API_KEY，然后启动
 ```
 
 **macOS / Linux：**
@@ -41,28 +44,26 @@ git clone https://github.com/Dzrave/Rzeclaw.git
 cd Rzeclaw
 chmod +x scripts/setup.sh
 ./scripts/setup.sh
-# 按提示编辑 .env 填入 ANTHROPIC_API_KEY，然后启动
 ```
 
-脚本会：安装依赖 → 构建 → 若不存在则从示例复制 `.env` 与 `rzeclaw.json`。
+向导中会提示：填写 API Key、选择模型（Anthropic / DeepSeek / Ollama）、命令终端（bash）是否需确认、是否启动 Gateway；按提示完成即可进入使用。
 
-### 方式 B：npm 命令
+### 方式 B：npm 后手动配置
 
 ```bash
 git clone https://github.com/Dzrave/Rzeclaw.git
 cd Rzeclaw
 npm run setup
-# 复制并编辑配置（可选）
-cp .env.example .env
-cp rzeclaw.example.json rzeclaw.json
-# 在 .env 中设置 ANTHROPIC_API_KEY=sk-ant-...
+node rzeclaw.mjs setup   # 进入配置向导（模型、终端、Gateway）
 ```
 
-### 配置 API Key
+未运行向导时，可手动复制 `cp .env.example .env`、`cp rzeclaw.example.json rzeclaw.json` 并编辑，再启动。
 
-- **推荐**：在项目根创建 `.env`，内容为 `ANTHROPIC_API_KEY=sk-ant-...`（项目已用 dotenv 加载）。
-- 或直接设置环境变量：`set ANTHROPIC_API_KEY=sk-ant-...`（Windows）、`export ANTHROPIC_API_KEY=sk-ant-...`（Unix）。
-- 或在 `rzeclaw.json` 中设置 `apiKeyEnv` 指向其它环境变量名。
+### 配置 API Key 与向导
+
+- **推荐**：运行 `node rzeclaw.mjs setup` 进入配置向导，按提示设置 API Key、模型、命令终端策略等。
+- 或手动：在项目根创建 `.env`，内容为 `ANTHROPIC_API_KEY=sk-ant-...`；或在 `rzeclaw.json` 中设置 `apiKeyEnv`。
+- 环境变量：`set ANTHROPIC_API_KEY=sk-ant-...`（Windows）、`export ANTHROPIC_API_KEY=sk-ant-...`（Unix）。
 
 ### 启动与使用
 
@@ -86,6 +87,7 @@ node rzeclaw.mjs gateway
 
 在项目根目录下执行（以下 `<cmd>` 可为 `node rzeclaw.mjs` 或全局安装后的 `rzeclaw`）：
 
+- **配置向导**：安装后或需改配置时运行 `node rzeclaw.mjs setup`，交互式确认模型、命令终端、Gateway 等。
 - **自检**：检查 Node 版本、依赖、构建、配置与 LLM 就绪情况。  
   `node rzeclaw.mjs self-check`  
   加 `--repair` 会在发现问题时自动执行 `npm install` 与 `npm run build`；加 `--reset-config` / `--reset-env` 可在修复时从示例恢复配置或 .env。  

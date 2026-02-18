@@ -17,6 +17,7 @@ import { mkdir, access } from "node:fs/promises";
 import path from "node:path";
 import { runSelfCheck, getRepairSteps } from "./self-check.js";
 import { runUninstall } from "./uninstall.js";
+import { runSetupWizard } from "./setup-wizard.js";
 const program = new Command();
 program
     .name("rzeclaw")
@@ -204,6 +205,12 @@ program
     const ok = workspaceWritable && llmReady;
     console.log(JSON.stringify({ ok, configLoaded: true, workspaceWritable, llmReady }, null, 2));
     process.exit(ok ? 0 : 1);
+});
+program
+    .command("setup")
+    .description("配置向导：检查依赖与构建 → 确认 API Key、模型、命令终端策略、是否启动 Gateway")
+    .action(async () => {
+    await runSetupWizard(process.cwd());
 });
 program
     .command("self-check")
