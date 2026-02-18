@@ -301,7 +301,8 @@ program
 
 program
   .command("uninstall")
-  .description("卸载：移除 node_modules 与 dist；可选移除配置与本地数据（默认均保留）")
+  .description("卸载：移除 node_modules 与 dist；可选移除配置与本地数据（默认均保留）。--all 为全部卸载。")
+  .option("--all", "全部卸载：移除软件及全部本地数据与配置（含 .env、rzeclaw.json、工作区及 .rzeclaw 数据）")
   .option("--remove-config", "同时移除 rzeclaw.json / .rzeclaw.json")
   .option("--remove-env", "同时移除 .env")
   .option("--remove-rzeclaw-data", "同时移除工作区内的 .rzeclaw 目录（记忆、快照等）")
@@ -310,11 +311,12 @@ program
   .option("-j, --json", "仅输出将执行的操作（不实际删除）")
   .action(async (opts) => {
     const projectRoot = process.cwd();
+    const full = opts.all === true;
     const options = {
-      removeWorkspace: opts.removeWorkspace === true,
-      removeConfig: opts.removeConfig === true,
-      removeEnv: opts.removeEnv === true,
-      removeRzeclawData: opts.removeRzeclawData === true,
+      removeWorkspace: full || opts.removeWorkspace === true,
+      removeConfig: full || opts.removeConfig === true,
+      removeEnv: full || opts.removeEnv === true,
+      removeRzeclawData: full || opts.removeRzeclawData === true,
       yes: opts.yes === true,
     };
     const result = runUninstall(projectRoot, options);

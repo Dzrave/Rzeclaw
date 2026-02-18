@@ -105,10 +105,23 @@ node rzeclaw.mjs uninstall
 
 即：只卸掉「可再通过 `npm run setup` 恢复」的部分，不删你的配置和数据。
 
+### 全部卸载（一键完全移除）
+
+使用 **`--all`** 可一次性移除软件及全部本地数据与配置，等同于同时指定 `--remove-config`、`--remove-env`、`--remove-rzeclaw-data`、`--remove-workspace`：
+
+```bash
+node rzeclaw.mjs uninstall --all
+```
+
+将移除：`node_modules/`、`dist/`、`.env`、`rzeclaw.json`、`.rzeclaw.json`、工作区内的 `.rzeclaw` 目录、以及整个工作区目录。**执行后不可恢复，请确认无需保留再执行。**
+
+若曾使用用户级配置（如 `~/.rzeclaw/config.json`），需手动删除该文件或 `~/.rzeclaw` 目录。
+
 ### 可选移除（需显式指定）
 
 | 选项 | 说明 |
 |------|------|
+| **`--all`** | **全部卸载**：移除上述所有项（软件 + 配置 + 本地数据 + 工作区）。 |
 | **`--remove-config`** | 同时删除 `rzeclaw.json`、`.rzeclaw.json`。 |
 | **`--remove-env`** | 同时删除 `.env`。 |
 | **`--remove-rzeclaw-data`** | 同时删除工作区内的 `.rzeclaw` 目录（记忆、快照等）。 |
@@ -128,11 +141,15 @@ node rzeclaw.mjs uninstall
 # 同时移除配置与 .env，仍保留工作区及 .rzeclaw 数据
 node rzeclaw.mjs uninstall --remove-config --remove-env
 
-# 彻底清理：再移除工作区内的 .rzeclaw 与整个工作区目录
+# 全部卸载：完全移除软件及全部配置与本地数据（推荐）
+node rzeclaw.mjs uninstall --all
+
+# 彻底清理（与 --all 等价，逐项指定）
 node rzeclaw.mjs uninstall --remove-config --remove-env --remove-rzeclaw-data --remove-workspace
 
 # 仅查看将执行的操作（不删除）
 node rzeclaw.mjs uninstall --json
+node rzeclaw.mjs uninstall --all --json
 ```
 
 ---
@@ -142,7 +159,7 @@ node rzeclaw.mjs uninstall --json
 1. **使用异常时**：先执行 `node rzeclaw.mjs self-check` 查看哪一项失败，再按提示执行 `repair` 或 `self-check --repair`。
 2. **需要还原到干净环境**：`node rzeclaw.mjs repair --reset-config --reset-env`（会覆盖现有配置与 .env，注意备份）。
 3. **要卸载但保留配置与数据**：`node rzeclaw.mjs uninstall`；之后若要再用，在项目根执行 `npm run setup` 即可。
-4. **要完全移除并清空本地数据**：按需加上 `--remove-config`、`--remove-env`、`--remove-rzeclaw-data`、`--remove-workspace`。
+4. **要完全移除并清空本地数据**：执行 `node rzeclaw.mjs uninstall --all`；或按需加上 `--remove-config`、`--remove-env`、`--remove-rzeclaw-data`、`--remove-workspace`。
 
 ---
 

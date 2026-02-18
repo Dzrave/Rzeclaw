@@ -99,8 +99,9 @@ node rzeclaw.mjs gateway
 
 - **卸载**：移除 `node_modules` 与 `dist`；**默认保留**工作区、`rzeclaw.json`、`.env`、工作区内的 `.rzeclaw`（记忆/快照等）。  
   `node rzeclaw.mjs uninstall`  
-  若需同时删除配置或本地数据，可加：`--remove-config`、`--remove-env`、`--remove-rzeclaw-data`、`--remove-workspace`（慎用）。  
-  仅查看将执行的操作：`node rzeclaw.mjs uninstall --json`
+  **全部卸载**（完全移除软件及配置与本地数据）：`node rzeclaw.mjs uninstall --all`。  
+  若需按项删除，可加：`--remove-config`、`--remove-env`、`--remove-rzeclaw-data`、`--remove-workspace`（慎用）。  
+  仅查看将执行的操作：`node rzeclaw.mjs uninstall --json` 或 `node rzeclaw.mjs uninstall --all --json`
 
 详见 **`docs/SELF_CHECK_AND_UNINSTALL.md`**。
 
