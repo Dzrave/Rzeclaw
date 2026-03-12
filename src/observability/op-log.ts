@@ -11,6 +11,7 @@ import { sanitizeForLog, sanitizeObject } from "../security/sanitize.js";
 export type RiskLevel = "low" | "medium" | "high";
 
 /** WO-IDE-012: 可选的撤销参数，用于 undo_last 重放逆操作 */
+/** WO-BT-007: 可选 source/flowId，区分 flow 与 agent 调用 */
 export type OpLogEntry = {
   op_id: string;
   tool: string;
@@ -23,6 +24,9 @@ export type OpLogEntry = {
   undo_hint?: { tool: string; args: Record<string, unknown> };
   /** WO-SEC-004: 风险分级，兼容旧条目无此字段 */
   risk_level?: RiskLevel;
+  /** WO-BT-007: 来源为 flow 时标注，便于审计区分 */
+  source?: "flow" | "agent";
+  flowId?: string;
 };
 
 /**
@@ -111,6 +115,19 @@ export async function readLastNEntries(workspaceRoot: string, n: number): Promis
   } catch {
     return [];
   }
+}
+
+/** WO-BT-018 可选：读取某 flow 最近若干条失败的工具调用（source=flow, flowId 匹配, result_ok=false），用于拼入 failureSummary。 */
+export async function readRecentFlowFailureEntries(
+  workspaceRoot: string,
+  flowId: string,
+  limit: number
+): Promise<OpLogEntry[]> {
+  const candidates = await readLastNEntries(workspaceRoot, Math.max(500, limit * 10));
+  const filtered = candidates.filter(
+    (e) => e.source === "flow" && e.flowId === flowId && e.result_ok === false
+  );
+  return filtered.slice(-limit);
 }
 
 /**

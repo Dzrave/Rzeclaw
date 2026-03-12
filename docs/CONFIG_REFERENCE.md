@@ -75,6 +75,23 @@
     "outputPath": ".rzeclaw/diagnostics",
     "intervalDaysSchedule": 0
   },
+  "flows": {
+    "enabled": true,
+    "libraryPath": ".rzeclaw/flows",
+    "routes": [
+      { "hint": "运行命令", "flowId": "run_cmd", "slotRules": [{ "name": "command", "pattern": "运行(.+)" }] },
+      { "hint": "部署", "flowId": "deploy_prod" },
+      { "hint": "配置/安装", "flowId": "simple_build" }
+    ],
+    "failureReplacement": {
+      "enabled": false,
+      "failureRateThreshold": 0.5,
+      "minSamples": 5,
+      "consecutiveFailuresThreshold": 3,
+      "markOnly": false,
+      "async": true
+    }
+  },
   "ideOperation": {
     "uiAutomation": false,
     "keyMouse": false,
@@ -121,6 +138,27 @@
 | 字段 | 类型 | 默认 | 说明 |
 |------|------|------|------|
 | `bootstrapDocPath` | string | `WORKSPACE_BEST_PRACTICES.md` | 相对 workspace 或绝对路径；会话中只读注入到 system。 |
+| `insertTree` | object | - | **WO-BT-024** 进化插入树：从成功执行提炼为脚本+BT 节点，沙盒验证后写入 evolved_skills 并插入 Selector 左侧。见下表。 |
+
+**insertTree**（可选）：
+
+| 字段 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `enabled` | boolean | false | 是否启用进化插入树管线。 |
+| `autoRun` | boolean | false | 满足条件时是否自动异步执行管线（否则仅建议，由 evolution.apply 显式触发）。 |
+| `requireUserConfirmation` | boolean | false | 是否要求用户确认后才执行。 |
+| `allowHighRiskOp` | boolean | false | 本轮是否允许含「高风险」op 仍触发。 |
+| `targetFlowId` | string | - | 插入新节点的 BT flowId（必填）。 |
+| `targetSelectorNodeId` | string | - | 目标 Selector 的 nodeId；空则用 root。 |
+| `evolvedSkillsDir` | string | `.rzeclaw/evolved_skills` | 进化产物存放目录，相对 workspace。 |
+| `sandboxTimeoutMs` | number | 30000 | 沙盒测试脚本超时（毫秒）。 |
+| `maxRetries` | number | 0 | LLM 或沙盒失败时最大重试次数。 |
+
+**调用方式**：
+- **evolution.apply**：params 需带 `context: { sessionSummary, toolOps, targetFlowSlice? }`，其中 `toolOps` 为必填且非空（由客户端组装）。
+- **evolution.confirm**：params 需带 `sessionId`（可选 `workspace`）；服务端从 op-log 与 session 自动组装 context 并执行管线，无需客户端传 context。
+- **evolutionSuggestion**：当 `requireUserConfirmation` 为 true 且本轮满足可进化条件时，chat 返回中会带 `evolutionSuggestion: true`，客户端可据此提示用户并调用 `evolution.confirm`。
+- **autoRun**：当 `autoRun` 为 true 且未开启 `requireUserConfirmation` 时，在 flow 或 Agent 执行成功后会自动异步执行进化管线，不阻塞回复。
 
 ---
 
@@ -175,6 +213,63 @@
 | `discovery.enabled` | boolean | false | 是否在局域网通过 mDNS 广播 _rzeclaw._tcp，供终端「扫描局域网」发现。 |
 
 终端连接时在首条请求的 params 中携带 `apiKey`（与上述环境变量值一致）；认证通过后该连接后续请求无需再带。终端设置页可点击「扫描局域网」发现已启用 discovery 的 Gateway。
+
+---
+
+## flows（Phase 13 行为树/状态机）
+
+启用后，Gateway 在 chat 入口先做流程路由：若用户消息匹配某条 route（基于任务 hint + routes 表），则执行对应 flow（BT 或 FSM），**不调用 LLM**，实现零 Token 流程执行。未配置或 `enabled` 为 false 时所有请求仍走 Agent。
+
+| 字段 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `enabled` | boolean | false | 是否启用流程路由；未配置时默认关闭。 |
+| `libraryPath` | string | - | 相对 workspace 的目录，存放 flow 的 JSON 文件（如 `.rzeclaw/flows`）。 |
+| `routes` | array | [] | 意图到 flowId 的映射；每项 `{ hint: string, flowId: string, slotRules?: [{ name, pattern }] }`。hint 与 `extractTaskHint(message)` 匹配时选用该 route；slotRules 为正则从 message 抽取 params。 |
+| `failureReplacement` | object | - | **WO-BT-018** 失败分支替换：失败率或连续失败超阈值时自动触发拓扑迭代或仅标记。见下表。 |
+
+**failureReplacement**（可选）：
+
+| 字段 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `enabled` | boolean | false | 是否启用失败率/连续失败触发。 |
+| `failureRateThreshold` | number | 0.5 | 失败率阈值 0～1；总样本数 ≥ minSamples 且失败率 ≥ 此值则触发。 |
+| `minSamples` | number | 5 | 至少多少条执行记录后才计算失败率。 |
+| `consecutiveFailuresThreshold` | number | 3 | 最近连续失败次数达到此值则触发（与失败率满足其一即可）。 |
+| `markOnly` | boolean | false | 为 true 时仅写 meta.flaggedForReplacement，不调用 runTopologyIteration。 |
+| `async` | boolean | true | 为 true 时异步执行 runTopologyIteration，不阻塞 chat 响应。 |
+
+示例：将 `docs/samples/flows/simple_build.json` 复制到 `<workspace>/.rzeclaw/flows/`，并配置 `flows.enabled: true`、`flows.libraryPath: ".rzeclaw/flows"`、`routes: [{ "hint": "配置/安装", "flowId": "simple_build" }]`，则用户说「配置一下」或「运行命令」等匹配到对应 hint 时会执行该 flow 而非走 Agent。流程执行中的工具调用经同一套校验、危险命令与权限策略，并写入 op-log（source=flow、flowId）。
+
+---
+
+## localModel（WO-LM 本地模型意图分类）
+
+**默认**：不配置任何 `localModel` 时，仅使用规则路由（与动机 RAG，若启用）；规则未命中时直接走主 LLM（若已配置）或返回提示。
+
+| 字段 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `enabled` | boolean | false | 总开关；未配置或 false 时不调用本地模型。 |
+| `provider` | string | - | `ollama` \| `openai-compatible`，对接本地 HTTP API。 |
+| `endpoint` | string | - | 服务地址，如 `http://127.0.0.1:11434`。 |
+| `model` | string | - | 模型名，如 `qwen2.5:3b`、`gpt-3.5-turbo`。 |
+| `timeoutMs` | number | 15000 | 请求超时（毫秒）。 |
+| `modes.intentClassifier.enabled` | boolean | false | 规则未命中时是否调用本地模型得到 router_v1（state、flowId、confidence）。 |
+| `modes.intentClassifier.confidenceThreshold` | number | 0.7 | 采纳 ROUTE_TO_LOCAL_FLOW 的最低置信度 0～1。 |
+
+**调用顺序**（在已启用 flows 时）：动机 RAG（若启用）→ 规则 matchFlow → **意图分类**（若 `localModel.modes.intentClassifier.enabled`）→ 未匹配时走主 LLM 或返回「未配置主 LLM」提示。意图分类输出 router_v1（state、flowId、params、confidence）；仅当 `state === "ROUTE_TO_LOCAL_FLOW"` 且 `confidence >= confidenceThreshold` 且 `flowId` 在流程库中存在时才按 flow 执行，否则按 state 与是否配置主 LLM 决定走 runAgentLoop 或提示。
+
+---
+
+## 路由与主 LLM 优先级与边界
+
+| 场景 | 行为 |
+|------|------|
+| **无任何模型** | 未配置主 LLM（`config.llm` 或 API Key 不可用）且未配置 localModel：规则/动机未命中时返回明确提示「未匹配到任何流程，且当前未配置可用的大模型…」。 |
+| **仅主 LLM（云端或 Ollama）** | 无 localModel 或 intentClassifier 未启用：动机 RAG → 规则 → 未匹配则 runAgentLoop；与现有行为一致。 |
+| **仅本地意图分类** | 启用 localModel.intentClassifier，未配置主 LLM：规则未命中时调用本地模型；若返回 ROUTE_TO_LOCAL_FLOW 且置信度达标则执行 flow，否则返回「需云端大模型处理，请配置 config.llm」。 |
+| **主 LLM + 本地意图分类** | 两者均配置：动机 RAG → 规则 → 意图分类；若意图分类返回 ROUTE_TO_LOCAL_FLOW 且达标则执行 flow，否则（ESCALATE_TO_CLOUD / UNKNOWN / 低置信度）走 runAgentLoop。 |
+
+主 LLM 可用性由 `isLlmReady(config)` 判定（Ollama 无需 Key；云端需已配置对应 API Key）。
 
 ---
 

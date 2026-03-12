@@ -7,10 +7,26 @@ export type MemoryConfig = {
     /** WO-407: L1 条目创建时间早于多少天移入冷存储 (0=关闭) */
     coldAfterDays?: number;
 };
-/** WO-404: Bootstrap / 自举文档路径等 */
+/** WO-BT-024: 进化插入树配置 */
+export type InsertTreeConfig = {
+    enabled?: boolean;
+    autoRun?: boolean;
+    requireUserConfirmation?: boolean;
+    allowHighRiskOp?: boolean;
+    /** 目标 flowId（插入新节点的 BT） */
+    targetFlowId?: string;
+    /** 目标 Selector 的 nodeId；若为空则用 root */
+    targetSelectorNodeId?: string;
+    /** 进化产物存放目录，相对 workspace，默认 .rzeclaw/evolved_skills */
+    evolvedSkillsDir?: string;
+    sandboxTimeoutMs?: number;
+    maxRetries?: number;
+};
+/** WO-404: Bootstrap / 自举文档路径等；WO-BT-024 进化插入树 */
 export type EvolutionConfig = {
     /** Path relative to workspace or absolute; default WORKSPACE_BEST_PRACTICES.md in workspace */
     bootstrapDocPath?: string;
+    insertTree?: InsertTreeConfig;
 };
 /** WO-403: 轻量规划，可选开启 */
 export type PlanningConfig = {
@@ -98,6 +114,98 @@ export type DiagnosticConfig = {
     outputPath?: string;
     /** 定时报告间隔（天），0=不定时 */
     intervalDaysSchedule?: number;
+};
+/** Phase 13 WO-BT-001: 流程（行为树/状态机）配置 */
+export type FlowsSlotRule = {
+    name: string;
+    pattern: string;
+};
+export type FlowsRouteEntry = {
+    hint: string;
+    flowId: string;
+    slotRules?: FlowsSlotRule[];
+};
+/** WO-BT-018: 失败分支替换策略 */
+export type FailureReplacementConfig = {
+    /** 是否启用失败率/连续失败触发 */
+    enabled?: boolean;
+    /** 失败率阈值 0~1，超过则触发 */
+    failureRateThreshold?: number;
+    /** 至少多少条执行记录后才计算失败率（避免样本过少） */
+    minSamples?: number;
+    /** 最近连续失败次数达到此值则触发 */
+    consecutiveFailuresThreshold?: number;
+    /** 为 true 时仅标记 meta.flaggedForReplacement，不调用 runTopologyIteration */
+    markOnly?: boolean;
+    /** 为 true 时异步执行 runTopologyIteration，不阻塞 chat 响应 */
+    async?: boolean;
+};
+/** WO-LM-001: 本地模型意图分类模式；仅用于路由，不替代主 LLM */
+export type IntentClassifierModeConfig = {
+    /** 是否在规则未命中时调用本地模型得到 router_v1 */
+    enabled?: boolean;
+    /** 采纳 ROUTE_TO_LOCAL_FLOW 的最低置信度 0~1，默认 0.7 */
+    confidenceThreshold?: number;
+};
+/** WO-LM-001: 本地模型配置（意图分类等）；不随包分发模型，仅对接用户自建服务 */
+export type LocalModelConfig = {
+    /** 总开关；未配置或 false 时不调用本地模型 */
+    enabled?: boolean;
+    /** ollama | openai-compatible */
+    provider?: "ollama" | "openai-compatible";
+    /** 服务地址，如 http://127.0.0.1:11434 */
+    endpoint?: string;
+    /** 模型名，如 qwen2.5:3b、gpt-3.5-turbo */
+    model?: string;
+    /** 请求超时毫秒，默认 15000 */
+    timeoutMs?: number;
+    /** 模式：意图分类等 */
+    modes?: {
+        intentClassifier?: IntentClassifierModeConfig;
+    };
+};
+/** RAG-1: 向量嵌入与检索；单集合配置 */
+export type VectorEmbeddingCollectionConfig = {
+    enabled?: boolean;
+    /** 可选：该集合索引路径覆盖默认 indexStoragePath 下子目录 */
+    pathOverride?: string;
+};
+/** RAG-1: vectorEmbedding 配置扩展 */
+export type VectorEmbeddingConfig = {
+    enabled?: boolean;
+    /** ollama | openai-compatible；ollama 用 /api/embeddings */
+    provider?: "ollama" | "openai-compatible";
+    /** 嵌入服务 URL，如 http://127.0.0.1:11434 */
+    endpoint?: string;
+    /** 模型名，如 nomic-embed-text、text-embedding-3-small */
+    model?: string;
+    /** 索引存储路径，相对 workspace，如 .rzeclaw/embeddings */
+    indexStoragePath?: string;
+    /** 各集合（motivation、skills、flows、external_* 等） */
+    collections?: Record<string, VectorEmbeddingCollectionConfig>;
+    /** RAG-2: 动机 RAG 命中阈值 0~1 */
+    motivationThreshold?: number;
+};
+/** WO-BT-014: LLM 触发生成 flow；用户一句话 → 生成请求 → createFlow(spec) */
+export type GenerateFlowConfig = {
+    /** 是否启用「无匹配时尝试用 LLM 生成新 flow」或显式请求生成 */
+    enabled?: boolean;
+    /** 当路由无匹配时是否尝试生成（否则仅显式请求时生成） */
+    triggerOnNoMatch?: boolean;
+    /** 显式触发短语的正则或子串，如「做一个.*流程」；未配置时用默认模式 */
+    triggerPattern?: string;
+};
+export type FlowsConfig = {
+    /** 关闭则所有请求仍走 Agent；未配置时默认关闭 */
+    enabled?: boolean;
+    /** 相对 workspace 的目录，存放 flow JSON，如 .rzeclaw/flows */
+    libraryPath?: string;
+    /** 意图/hint 到 flowId 的映射；可选 slotRules 从 message 抽取 params */
+    routes?: FlowsRouteEntry[];
+    /** WO-BT-018: 失败分支替换策略 */
+    failureReplacement?: FailureReplacementConfig;
+    /** WO-BT-014: LLM 触发生成 flow */
+    generateFlow?: GenerateFlowConfig;
 };
 /** IDE/PC 操作能力（WO-IDE-001）：L2/L3 默认关闭，显式启用 */
 export type IdeOperationConfirmPolicy = {
@@ -193,6 +301,17 @@ export type RzeclawConfig = {
     knowledge?: KnowledgeConfig;
     /** Phase 12: 自我诊断报告与改进建议 */
     diagnostic?: DiagnosticConfig;
+    /** Phase 13 WO-BT-001: 行为树/状态机流程；enabled 未配置时默认关闭 */
+    flows?: FlowsConfig;
+    /** RAG-1: 向量嵌入与检索（内源/外源 RAG、动机 RAG） */
+    vectorEmbedding?: VectorEmbeddingConfig;
+    /** WO-LM-001: 本地模型（意图分类等）；默认不配置，不调用 */
+    localModel?: LocalModelConfig;
+    /** RAG-4: 复盘机制；cron 为定时触发（如 "0 0 * * *" 每日零点） */
+    retrospective?: {
+        enabled?: boolean;
+        cron?: string;
+    };
     /** IDE/PC 操作：L2 UI 自动化、L3 键鼠/视觉、超时、确认策略（WO-IDE-001） */
     ideOperation?: IdeOperationConfig;
     /** WO-SEC: 安全与隐私（危险命令、process 保护、权限域） */
@@ -211,5 +330,7 @@ export declare function getResolvedLlm(config: RzeclawConfig): {
     fallbackProvider?: "anthropic" | "deepseek" | "minimax";
 };
 export declare function getApiKey(config: RzeclawConfig): string | undefined;
-/** 当前配置下是否可调用 LLM（Ollama 无需 Key；云端需已配置对应 API Key） */
+/** 当前配置下是否可调用主 LLM（runAgentLoop 可用：Ollama 或云端已配置 API Key） */
 export declare function isLlmReady(config: RzeclawConfig): boolean;
+/** WO-LM-003: 本地模型意图分类是否可用（enabled + endpoint + model + modes.intentClassifier.enabled） */
+export declare function isLocalIntentClassifierAvailable(config: RzeclawConfig): boolean;

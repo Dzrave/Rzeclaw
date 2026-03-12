@@ -71,6 +71,8 @@
 | **L2 UI 自动化验证（Windows）** | 配置 `ideOperation.uiAutomation: true`、`allowedApps: ["Code", "cmd"]` 等；在文档中写一句「可用 ui_describe 列出窗口、ui_act 点击」的验证步骤。 | 确认 L2 在真实环境可用。 |
 | **L3 键鼠验证（Windows）** | 配置 `ideOperation.keyMouse: true` 与 allowedApps；文档中写「先 focus 再 keymouse 发键」的示例。 | 确认 L3 可用且安全策略生效。 |
 | **可撤销/重放验证** | 文档中写：先 edit 或 write，再调用 `undo_last`；或调用 `replay_ops` 重放最近 N 条。 | 确认 Phase E 行为符合预期。 |
+| **流程执行验证（Phase 13）** | 启用 `flows.enabled`、配置 `libraryPath` 与 `routes`；将 `docs/samples/flows/simple_build.json` 复制到 `<workspace>/.rzeclaw/flows/`；发匹配 hint 的消息（如「配置一下」「运行命令」），确认回复来自流程执行且无 LLM 调用（可观察无流式 chunk 或日志）。 | 确认零 Token 流程路由与 FSM/BT 执行闭环。 |
+| **流程库 CRUD 与拓扑迭代（Phase G）** | 通过 `createFlow`/`getFlow`/`replaceFlow`/`deleteFlow`/`archiveFlow`/`listFlows`、`applyEditOps(flowId, ops)` 与 `runTopologyIteration(params)` 可编程管理流程库；审计写入 `libraryPath/audit.jsonl`。 | 确认 WO-BT-025/026 能力可用。 |
 
 ### 3.3 非必须但可提升「可验证性」
 

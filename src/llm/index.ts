@@ -128,3 +128,24 @@ export function getLLMClient(config: RzeclawConfig): ILLMClient {
 }
 
 export type { ILLMClient, CreateMessageParams, LLMResponse, LLMMessage, LLMTool, LLMContentBlock } from "./types.js";
+
+/**
+ * WO-BT-021: 单轮 LLM 调用（无工具），用于 BT 内 LLM 兜底节点。返回助手回复文本。
+ */
+export async function singleTurnLLM(
+  config: RzeclawConfig,
+  userMessage: string,
+  systemPrompt?: string
+): Promise<string> {
+  const client = getLLMClient(config);
+  const response = await client.createMessage({
+    system: systemPrompt ?? "You are a concise fallback assistant. Reply briefly to the user.",
+    messages: [{ role: "user", content: userMessage }],
+    max_tokens: 1024,
+  });
+  const parts: string[] = [];
+  for (const block of response.content) {
+    if (block.type === "text") parts.push(block.text);
+  }
+  return parts.join("").trim() || "(No response)";
+}

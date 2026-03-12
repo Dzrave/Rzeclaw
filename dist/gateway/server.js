@@ -12,7 +12,15 @@ import { readCanvas, updateCanvas } from "../canvas/index.js";
 import { getMergedTools } from "../tools/merged.js";
 import { runHeartbeatTick } from "../heartbeat/index.js";
 import { runProactiveInference } from "../proactive/index.js";
-import { getGatewayApiKey, isLlmReady } from "../config.js";
+import { getFlowLibrary, matchFlow, executeFlow, appendOutcome, getFlowSuccessRates, updateFlowMetaAfterRun, performFailureReplacementAfterRun, runFailureReplacementScan, runEvolutionInsertTree, canSuggestEvolution, assembleEvolutionContextFromWorkspace, runLLMGenerateFlow, shouldTryLLMGenerateFlow, listFlows } from "../flows/index.js";
+import { search as ragSearch, getRagContextForFlow, reindexCollection } from "../rag/index.js";
+import { appendTelemetry } from "../retrospective/telemetry.js";
+import { runRetrospective, getMorningReport, listPendingDates, applyPending } from "../retrospective/index.js";
+import { applyEditOps } from "../flows/crud.js";
+import { addMotivationEntry } from "../rag/motivation.js";
+import { singleTurnLLM } from "../llm/index.js";
+import { getGatewayApiKey, isLlmReady, isLocalIntentClassifierAvailable } from "../config.js";
+import { callIntentClassifier } from "../local-model/index.js";
 import { ingestPaths } from "../knowledge/index.js";
 import { generateReport, writeSuggestionsFile } from "../diagnostic/index.js";
 import path from "node:path";
@@ -25,11 +33,16 @@ const sessions = new Map();
 function getOrCreateSession(sessionId, sessionType) {
     let s = sessions.get(sessionId);
     if (!s) {
-        s = { messages: [], ...(sessionType ? { sessionType } : {}) };
+        s = { messages: [], blackboard: {}, sessionState: "Idle", ...(sessionType ? { sessionType } : {}) };
         sessions.set(sessionId, s);
     }
-    else if (sessionType !== undefined) {
-        s.sessionType = sessionType;
+    else {
+        if (sessionType !== undefined)
+            s.sessionType = sessionType;
+        if (s.blackboard == null)
+            s.blackboard = {};
+        if (s.sessionState == null)
+            s.sessionState = "Idle";
     }
     return s;
 }
@@ -210,6 +223,241 @@ export function createGatewayServer(config, port) {
                         if (newSummary)
                             session.sessionSummary = newSummary;
                     }
+                    if (config.flows?.enabled === true && config.flows.routes?.length && config.flows.libraryPath) {
+                        const flowLibrary = await getFlowLibrary(workspace, config.flows.libraryPath);
+                        const successRates = await getFlowSuccessRates(workspace, config.flows.libraryPath);
+                        let matched = null;
+                        let intentSource = "none";
+                        if (config.vectorEmbedding?.enabled && config.vectorEmbedding.collections?.motivation?.enabled) {
+                            const motivationHits = await ragSearch(config, workspace, "motivation", message, 1);
+                            const threshold = config.vectorEmbedding.motivationThreshold ?? 0.75;
+                            const hit = motivationHits[0];
+                            const t = hit?.metadata?.translated;
+                            const conf = hit?.metadata?.confidence_default ?? hit?.score ?? 0;
+                            if (hit && (hit.score >= threshold || conf >= threshold) && t?.state === "ROUTE_TO_LOCAL_FLOW" && t.flowId && flowLibrary.has(t.flowId)) {
+                                const params = t.params ?? {};
+                                matched = {
+                                    flowId: t.flowId,
+                                    params: Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v ?? "")])),
+                                };
+                                intentSource = "motivation_rag";
+                            }
+                        }
+                        if (!matched) {
+                            matched = matchFlow(message, {
+                                routes: config.flows.routes,
+                                flowLibrary,
+                                successRates,
+                            });
+                            if (matched)
+                                intentSource = "rule";
+                        }
+                        if (!matched && isLocalIntentClassifierAvailable(config)) {
+                            const icResult = await callIntentClassifier(config, message, new Set(flowLibrary.keys()));
+                            if (icResult.ok && icResult.router.state === "ROUTE_TO_LOCAL_FLOW" && icResult.router.flowId) {
+                                const threshold = config.localModel.modes.intentClassifier.confidenceThreshold ?? 0.7;
+                                if (icResult.router.confidence >= threshold && flowLibrary.has(icResult.router.flowId)) {
+                                    const params = icResult.router.params ?? {};
+                                    matched = {
+                                        flowId: icResult.router.flowId,
+                                        params: Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v ?? "")])),
+                                    };
+                                    intentSource = "intent_classifier";
+                                }
+                            }
+                        }
+                        session.sessionState = matched ? "Local_Intercept" : "Deep_Reasoning";
+                        if (!matched && shouldTryLLMGenerateFlow(config, message, false)) {
+                            const list = await listFlows(workspace, config.flows.libraryPath);
+                            const existingFlowIds = list.map((e) => e.flowId);
+                            const gen = await runLLMGenerateFlow({
+                                config,
+                                workspace,
+                                libraryPath: config.flows.libraryPath,
+                                userMessage: message,
+                                existingFlowIds,
+                            });
+                            if (gen.success) {
+                                const content = `已根据您的描述创建流程「${gen.flowId}」。建议在配置的 flows.routes 中添加：{ "hint": "${gen.hint}", "flowId": "${gen.flowId}" }，即可通过类似「${gen.hint}」触发该流程。`;
+                                const messages = [
+                                    ...session.messages,
+                                    { role: "user", content: message },
+                                    { role: "assistant", content },
+                                ];
+                                session.messages = messages;
+                                session.sessionState = "Idle";
+                                send({ content, generatedFlowId: gen.flowId, suggestedRoute: { hint: gen.hint, flowId: gen.flowId } });
+                                return;
+                            }
+                        }
+                        if (matched) {
+                            session.sessionState = "Executing_Task";
+                            const flow = flowLibrary.get(matched.flowId);
+                            if (flow) {
+                                const flowStart = Date.now();
+                                const baseTools = await getMergedTools(config, workspace);
+                                const blackboard = session.blackboard ?? {};
+                                const writeSlotTool = {
+                                    name: "write_slot",
+                                    description: "Write a value to the session blackboard (slot). Used by flows to pass data to the agent.",
+                                    inputSchema: {
+                                        type: "object",
+                                        properties: { key: { type: "string", description: "Slot name" }, value: { type: "string", description: "Slot value" } },
+                                        required: ["key", "value"],
+                                    },
+                                    handler: async (args) => {
+                                        const k = String(args.key ?? "");
+                                        const v = String(args.value ?? "");
+                                        if (k)
+                                            blackboard[k] = v;
+                                        return { ok: true, content: "OK" };
+                                    },
+                                };
+                                const tools = [...baseTools, writeSlotTool];
+                                const result = await executeFlow({
+                                    config,
+                                    workspace,
+                                    flowId: matched.flowId,
+                                    flow,
+                                    params: matched.params,
+                                    tools,
+                                    flowLibrary,
+                                    blackboard,
+                                    userMessage: message,
+                                    onLLMNode: async (opts) => {
+                                        try {
+                                            let contextSummary = opts.contextSummary ?? "";
+                                            const extColl = flow.meta?.externalCollections;
+                                            if (extColl?.length) {
+                                                const rag = await getRagContextForFlow(config, workspace, extColl, opts.message ?? message, 3);
+                                                if (rag)
+                                                    contextSummary = rag + "\n" + contextSummary;
+                                            }
+                                            const content = await singleTurnLLM(config, opts.message, contextSummary);
+                                            return { content, success: true };
+                                        }
+                                        catch (e) {
+                                            return {
+                                                content: e instanceof Error ? e.message : String(e),
+                                                success: false,
+                                            };
+                                        }
+                                    },
+                                });
+                                const content = result.content;
+                                const libPath = config.flows.libraryPath;
+                                await appendOutcome(workspace, libPath, {
+                                    flowId: matched.flowId,
+                                    paramsSummary: JSON.stringify(matched.params).slice(0, 200),
+                                    success: result.success,
+                                    ts: new Date().toISOString(),
+                                });
+                                await updateFlowMetaAfterRun(workspace, libPath, matched.flowId, result.success);
+                                await performFailureReplacementAfterRun(workspace, libPath, matched.flowId, config);
+                                if (config.retrospective?.enabled) {
+                                    void appendTelemetry(workspace, {
+                                        ts: new Date().toISOString(),
+                                        type: "flow_end",
+                                        sessionId,
+                                        flowId: matched.flowId,
+                                        success: result.success,
+                                        durationMs: Date.now() - flowStart,
+                                        intentSource,
+                                    });
+                                }
+                                let evolutionSuggestionFlow = false;
+                                if (config.evolution?.insertTree?.enabled && config.flows?.libraryPath) {
+                                    const canSuggest = await canSuggestEvolution(config, workspace);
+                                    if (canSuggest) {
+                                        if (config.evolution.insertTree.requireUserConfirmation) {
+                                            evolutionSuggestionFlow = true;
+                                        }
+                                        else if (config.evolution.insertTree.autoRun) {
+                                            const ctx = await assembleEvolutionContextFromWorkspace(workspace, {
+                                                sessionSummary: session.sessionSummary,
+                                                config,
+                                                libraryPath: config.flows.libraryPath,
+                                                lastN: 30,
+                                            });
+                                            if (ctx.toolOps.length > 0) {
+                                                void runEvolutionInsertTree({
+                                                    config,
+                                                    workspace,
+                                                    libraryPath: config.flows.libraryPath,
+                                                    context: ctx,
+                                                    sessionId,
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+                                const messages = [
+                                    ...session.messages,
+                                    { role: "user", content: message },
+                                    { role: "assistant", content },
+                                ];
+                                session.messages = messages;
+                                if (!session.sessionFlags?.privacy) {
+                                    await writeSnapshot(workspace, sessionId, {
+                                        messages: session.messages,
+                                        sessionGoal: session.sessionGoal,
+                                        sessionSummary: session.sessionSummary,
+                                        sessionType: session.sessionType,
+                                    });
+                                }
+                                if (config.memory?.enabled && messages.length >= 2 && !session.sessionFlags?.privacy) {
+                                    const store = createStore(workspace, config.memory.workspaceId);
+                                    const { summary, factCount } = await flushToL1({
+                                        config,
+                                        sessionId,
+                                        messages,
+                                        store,
+                                        workspaceId: config.memory.workspaceId ?? workspace,
+                                        taskHint: extractTaskHint(message),
+                                    });
+                                    await writeSessionSummaryFile({
+                                        workspaceDir: workspace,
+                                        sessionId,
+                                        summary,
+                                        factCount,
+                                    });
+                                    const workspaceId = config.memory.workspaceId ?? workspace;
+                                    await promoteL1ToL2(store, {
+                                        workspace_id: workspaceId,
+                                        created_after: new Date(Date.now() - 120_000).toISOString(),
+                                        limit: 50,
+                                    });
+                                    if (typeof config.memory.coldAfterDays === "number" &&
+                                        config.memory.coldAfterDays > 0) {
+                                        await archiveCold(workspace, config.memory.workspaceId, config.memory.coldAfterDays);
+                                    }
+                                    await writePromptSuggestions({
+                                        config,
+                                        workspaceDir: workspace,
+                                        sessionId,
+                                        summary,
+                                    });
+                                }
+                                session.sessionState = "Idle";
+                                send({
+                                    content,
+                                    ...(evolutionSuggestionFlow ? { evolutionSuggestion: true } : {}),
+                                });
+                                return;
+                            }
+                        }
+                        if (session.sessionState === "Executing_Task")
+                            session.sessionState = "Deep_Reasoning";
+                    }
+                    else {
+                        session.sessionState = "Deep_Reasoning";
+                    }
+                    if (!isLlmReady(config)) {
+                        const noRouteMsg = "未匹配到任何流程，且当前未配置可用的大模型（主 LLM），无法进行开放域对话。请配置 config.llm，或添加 flows.routes / 动机 RAG / 本地意图分类以匹配流程。";
+                        send({ content: noRouteMsg });
+                        return;
+                    }
+                    const agentStart = Date.now();
                     const { content, messages, citedMemoryIds } = await runAgentLoop({
                         config: { ...config, workspace },
                         userMessage: message,
@@ -220,6 +468,7 @@ export function createGatewayServer(config, port) {
                         sessionType: session.sessionType,
                         teamId: typeof params.teamId === "string" ? params.teamId : undefined,
                         sessionFlags: session.sessionFlags,
+                        blackboard: session.blackboard,
                         onText: (chunk) => {
                             try {
                                 ws.send(JSON.stringify({ id, stream: "text", chunk }));
@@ -227,7 +476,17 @@ export function createGatewayServer(config, port) {
                             catch (_) { }
                         },
                     });
+                    session.sessionState = "Idle";
                     session.messages = messages;
+                    if (config.retrospective?.enabled) {
+                        void appendTelemetry(workspace, {
+                            ts: new Date().toISOString(),
+                            type: "agent_turn",
+                            sessionId,
+                            durationMs: Date.now() - agentStart,
+                            intentSource: "none",
+                        });
+                    }
                     if (!session.sessionFlags?.privacy) {
                         await writeSnapshot(workspace, sessionId, {
                             messages: session.messages,
@@ -269,9 +528,36 @@ export function createGatewayServer(config, port) {
                             summary,
                         });
                     }
+                    let evolutionSuggestionAgent = false;
+                    if (config.evolution?.insertTree?.enabled && config.flows?.libraryPath) {
+                        const canSuggest = await canSuggestEvolution(config, workspace);
+                        if (canSuggest) {
+                            if (config.evolution.insertTree.requireUserConfirmation) {
+                                evolutionSuggestionAgent = true;
+                            }
+                            else if (config.evolution.insertTree.autoRun) {
+                                const ctx = await assembleEvolutionContextFromWorkspace(workspace, {
+                                    sessionSummary: session.sessionSummary,
+                                    config,
+                                    libraryPath: config.flows.libraryPath,
+                                    lastN: 30,
+                                });
+                                if (ctx.toolOps.length > 0) {
+                                    void runEvolutionInsertTree({
+                                        config,
+                                        workspace,
+                                        libraryPath: config.flows.libraryPath,
+                                        context: ctx,
+                                        sessionId,
+                                    });
+                                }
+                            }
+                        }
+                    }
                     send({
                         content,
                         ...(citedMemoryIds && citedMemoryIds.length > 0 ? { citedMemoryIds } : {}),
+                        ...(evolutionSuggestionAgent ? { evolutionSuggestion: true } : {}),
                     });
                     return;
                 }
@@ -380,6 +666,164 @@ export function createGatewayServer(config, port) {
                         const { report, filePath } = await generateReport(config, { workspace, days });
                         const suggestionsPath = await writeSuggestionsFile(workspace, report);
                         send({ report, filePath, suggestionsPath });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                if (method === "evolution.confirm") {
+                    if (!config.evolution?.insertTree?.enabled) {
+                        sendError("evolution.insertTree is not enabled");
+                        return;
+                    }
+                    const libraryPath = config.flows?.libraryPath;
+                    if (!libraryPath) {
+                        sendError("flows.libraryPath is required for evolution.confirm");
+                        return;
+                    }
+                    const workspace = path.resolve(params.workspace || config.workspace);
+                    const sessionId = params.sessionId || "main";
+                    const session = getOrCreateSession(sessionId);
+                    try {
+                        const context = await assembleEvolutionContextFromWorkspace(workspace, {
+                            sessionSummary: session.sessionSummary,
+                            config,
+                            libraryPath,
+                            lastN: 30,
+                        });
+                        if (!context.toolOps.length) {
+                            sendError("No recent tool ops to evolve; run a flow or agent round with tool calls first.");
+                            return;
+                        }
+                        const result = await runEvolutionInsertTree({
+                            config,
+                            workspace,
+                            libraryPath,
+                            context,
+                            sessionId,
+                        });
+                        send(result);
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                if (method === "rag.reindex") {
+                    const p = params;
+                    const workspace = path.resolve(p.workspace || config.workspace);
+                    const collection = (p.collection === "skills" || p.collection === "motivation" ? p.collection : "flows");
+                    const libraryPath = p.libraryPath || config.flows?.libraryPath;
+                    try {
+                        const result = await reindexCollection(config, workspace, collection, libraryPath);
+                        send(result);
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                if (method === "flows.scanFailureReplacement") {
+                    const libraryPath = config.flows?.libraryPath;
+                    if (!libraryPath) {
+                        sendError("flows.libraryPath is required");
+                        return;
+                    }
+                    const workspace = path.resolve(params.workspace || config.workspace);
+                    try {
+                        const result = await runFailureReplacementScan(config, workspace, libraryPath);
+                        send(result);
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                if (method === "evolution.apply") {
+                    if (!config.evolution?.insertTree?.enabled) {
+                        sendError("evolution.insertTree is not enabled");
+                        return;
+                    }
+                    const libraryPath = config.flows?.libraryPath;
+                    if (!libraryPath) {
+                        sendError("flows.libraryPath is required for evolution.apply");
+                        return;
+                    }
+                    const context = params.context;
+                    if (!context?.toolOps?.length) {
+                        sendError("params.context with non-empty toolOps is required");
+                        return;
+                    }
+                    const workspace = path.resolve(params.workspace || config.workspace);
+                    const sessionId = typeof params.sessionId === "string" ? params.sessionId : undefined;
+                    try {
+                        const result = await runEvolutionInsertTree({
+                            config,
+                            workspace,
+                            libraryPath,
+                            context: { sessionSummary: context.sessionSummary ?? "", toolOps: context.toolOps, targetFlowSlice: context.targetFlowSlice },
+                            sessionId,
+                        });
+                        send(result);
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                if (method === "retrospective.run") {
+                    const workspace = path.resolve(params.workspace || config.workspace);
+                    try {
+                        const result = await runRetrospective(config, workspace);
+                        send(result);
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                if (method === "retrospective.report") {
+                    const workspace = path.resolve(params.workspace || config.workspace);
+                    const date = (params.date) || new Date().toISOString().slice(0, 10);
+                    try {
+                        const report = await getMorningReport(workspace, date);
+                        send(report ?? { date, summary: "无待审报告", patches: [] });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                if (method === "retrospective.list") {
+                    const workspace = path.resolve(params.workspace || config.workspace);
+                    try {
+                        const dates = await listPendingDates(workspace);
+                        send({ dates });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                if (method === "retrospective.apply") {
+                    const workspace = path.resolve(params.workspace || config.workspace);
+                    const date = (params.date) || new Date().toISOString().slice(0, 10);
+                    const libraryPath = config.flows?.libraryPath;
+                    if (!libraryPath) {
+                        sendError("flows.libraryPath required for retrospective.apply");
+                        return;
+                    }
+                    try {
+                        const result = await applyPending(workspace, date, async (flowId, ops) => {
+                            const res = await applyEditOps(workspace, libraryPath, flowId, ops);
+                            return res.success;
+                        }, async (entry) => {
+                            const e = entry;
+                            const r = await addMotivationEntry(config, workspace, e);
+                            return r.success;
+                        });
+                        send(result);
                     }
                     catch (e) {
                         sendError(e instanceof Error ? e.message : String(e));

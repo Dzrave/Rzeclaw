@@ -60,6 +60,27 @@ export async function runAgentLoop(params) {
         const privacyAllowlist = new Set(["read", "env_summary"]);
         mergedTools = mergedTools.filter((t) => privacyAllowlist.has(t.name));
     }
+    if (params.blackboard) {
+        mergedTools = [
+            ...mergedTools,
+            {
+                name: "write_slot",
+                description: "Write a value to the session blackboard (slot). Use to store key-value data for this session.",
+                inputSchema: {
+                    type: "object",
+                    properties: { key: { type: "string", description: "Slot name" }, value: { type: "string", description: "Slot value" } },
+                    required: ["key", "value"],
+                },
+                handler: async (args) => {
+                    const k = String(args.key ?? "");
+                    const v = String(args.value ?? "");
+                    if (k)
+                        params.blackboard[k] = v;
+                    return { ok: true, content: "OK" };
+                },
+            },
+        ];
+    }
     const tools = toLLMTools(mergedTools);
     let systemPrompt = buildSystemPrompt(mergedTools);
     const bootstrapContent = await readBootstrapContent(params.config);
@@ -75,6 +96,10 @@ export async function runAgentLoop(params) {
     }
     if (params.sessionSummary) {
         systemPrompt += "\n\n[Previous context summary]\n" + params.sessionSummary;
+    }
+    if (params.blackboard && Object.keys(params.blackboard).length > 0) {
+        const lines = Object.entries(params.blackboard).map(([k, v]) => `${k}: ${v}`);
+        systemPrompt += "\n\n[Session slots (blackboard)]\n" + lines.join("\n");
     }
     const roleFragment = getRoleFragment(params.config, params.sessionType);
     if (roleFragment) {

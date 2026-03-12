@@ -2,6 +2,20 @@
 
 基于《蜂群智能团队：愿景与整体设计方案》(SWARM_VISION_AND_OVERALL_DESIGN.md) 的定位与能力支柱，本文档规定**实施计划**与**阶段划分**，以及**每个模块实现前的必经流程**。后续各 Phase 的工单拆解与实现均以此为准。
 
+**设计文档来源与对应关系**：本文档中的 Phase 13（行为树/状态机）、RAG 与复盘、智能体与内嵌小模型等设计，源自多轮设计对话并沉淀为以下设计文档，统一由本总计划索引；实现时以各 Phase 对应的设计文档与工单为准。
+
+| 主题 | 设计/总结文档 | 说明 |
+|------|----------------|------|
+| 行为树与状态机 | `BEHAVIOR_TREE_AND_STATE_MACHINE_DESIGN.md` | Phase 13 主设计；路由、Executor、流程库、经验迭代 |
+| 行为树上下文与 Skill | `BEHAVIOR_TREE_CONTEXT_AND_SKILL_DESIGN.md` | 上下文、Skill 双形态、技能胶囊；与主设计配套 |
+| 行为树设计对比 | `BEHAVIOR_TREE_STATE_MACHINE_DESIGN_COMPARISON.md` | 与 OpenClaw 等对比与融合建议 |
+| RAG 总结与对接 | `RAG设计总结与智能体对接讨论.md` | 双轨 RAG、动机 RAG、复盘与智能体/BT 的对接要点（总结） |
+| RAG 与复盘详细设计 | `RAG与复盘机制详细设计.md` | 双轨 RAG、动机 RAG、向量层、复盘机制、遥测与安全（可落地设计） |
+| 智能体设计总结 | `智能体设计总结与对接要点.md` | Agent/FSM/Event Bus 与 BT、Router、内嵌模型的对接与术语 |
+| 内嵌小模型 | `内嵌小模型选型与可行性讨论.md` | 本地模型接口、vectorEmbedding、router_v1、方案 B 配置 |
+
+**愿景对照与补充（实施前确认）**：上述设计文档来源于多轮愿景对话（行为树/状态机、内嵌小模型 B 方案与统一接口、智能体总结、RAG 双轨与复盘），总计划已通过本表与各 Phase 索引覆盖愿景要点。**补充说明**：(1) Phase 13 工单以主设计 **§十四** 为准，编号 WO-BT-001～026（含 Phase A～G）；(2) RAG 与复盘按 `RAG与复盘机制详细设计.md` §八 可实现为 RAG-1～4 阶段，与 Phase 13 路由/流程库对接，工单整合见 `PHASE13_FULL_WORK_ORDERS.md`；(3) 内嵌小模型统一接口（localModel、vectorEmbedding、router_v1、intentClassifier 对接）为 Phase 13 可选扩展，同一工单文档中列出补充工单，实现时可按需先做规则路由再接本地模型。**无需对愿景内容做进一步补充**，按本计划与工单执行即可避免实现遗漏。
+
 ---
 
 ## 一、实施原则
@@ -24,6 +38,7 @@
 | **Phase 10** | SWARM_ROLES_AND_CONTEXTS_DESIGN.md（新建） | PHASE10_WORK_ORDERS.md | 角色/会话类型、多上下文协同 |
 | **Phase 11** | KNOWLEDGE_PIPELINE_DESIGN.md（新建） | PHASE11_WORK_ORDERS.md | 知识库流水线、批量摄取、咨询入口 |
 | **Phase 12** | PHASE12_SELF_IMPROVEMENT_DESIGN.md（新建） | PHASE12_WORK_ORDERS.md | 自我诊断报告与改进建议 |
+| **Phase 13** | BEHAVIOR_TREE_AND_STATE_MACHINE_DESIGN.md ✅ | 工单见设计文档 §十四 + `PHASE13_FULL_WORK_ORDERS.md`（WO-BT-001～026，含 RAG/内嵌 对接工单） | 行为树与状态机、流程路由、零 Token 执行、经验迭代 |
 
 ---
 
@@ -37,12 +52,14 @@
 | **10** | 蜂群角色与多上下文 | 会话类型/角色（开发/知识库/PM）、多 workspace 与画布协同 | Phase 7、8、9 | 角色化行为与上下文隔离 |
 | **11** | 知识库流水线与咨询 | 批量摄取、索引与检索增强、咨询专用入口 | Phase 0～6 记忆层 | 知识库构建与咨询闭环 |
 | **12** | 自我诊断与进化 | 行为报告、改进建议接口、可选半自动采纳 | Phase 6 进化相关 | 可进化闭环可见化 |
+| **13** | 行为树与状态机 | 流程路由、BT/FSM 执行、动态构建、经验迭代、零 Token 流程执行 | Phase 0～6（工具、Gateway、配置） | 路由与双引擎、流程库、outcomes 与优选 |
 
 - **Phase 7 与 8**：可并行开发；终端联调与「多机/认证」体验依赖 Phase 8 完成。  
 - **Phase 9**：依赖 Phase 6（Heartbeat、任务、提议已存在）。  
 - **Phase 10**：依赖 7（终端展示角色/workspace）、8（多机与认证）、9（任务与画布增强）。  
 - **Phase 11**：依赖现有记忆与检索，可与 10 并行规划，实现顺序可放在 10 之后。  
-- **Phase 12**：依赖 6 的进化能力，可最后实施。
+- **Phase 12**：依赖 6 的进化能力，可最后实施。  
+- **Phase 13**：依赖 Phase 0～6（Gateway、工具、配置）；与 7～12 无强依赖，可并行规划；实现后可与 Heartbeat/终端等联调。
 
 ---
 
@@ -71,6 +88,15 @@
 - **Phase 12**  
   - 设计：`docs/PHASE12_SELF_IMPROVEMENT_DESIGN.md`（新建，可简短）  
   - 工单：`docs/PHASE12_WORK_ORDERS.md`（WO-12xx）
+
+- **Phase 13**  
+  - 设计：`docs/BEHAVIOR_TREE_AND_STATE_MACHINE_DESIGN.md`（主设计）  
+  - 配套：`docs/BEHAVIOR_TREE_CONTEXT_AND_SKILL_DESIGN.md`（上下文与 Skill）、`docs/BEHAVIOR_TREE_STATE_MACHINE_DESIGN_COMPARISON.md`（对比与融合）  
+  - 工单：主设计文档 **§十四**（WO-BT-001～026）；整合与依赖顺序见 `docs/PHASE13_FULL_WORK_ORDERS.md`（含与 RAG、内嵌小模型对接的补充工单，防遗漏）  
+  - **失败分支替换（WO-BT-018）**：设计要点与排期见 `docs/FAILURE_REPLACEMENT_018_DESIGN.md`。  
+  - **进化插入树（WO-BT-024）**：完整设计方案见 `docs/EVOLUTION_INSERT_TREE_DESIGN.md`（触发、生成、沙盒、工具热注册、插树）。  
+  - **018 与 024 统一执行工单**：`docs/PHASE13_WO_018_024_EXECUTION_ORDERS.md`（018 优先、024 随后，子工单 018-1～018-6、024-1～024-8）。  
+  - 关联：智能体/路由/术语见 `docs/智能体设计总结与对接要点.md`；本地小模型接口见 `docs/内嵌小模型选型与可行性讨论.md`；RAG 双轨、动机 RAG、复盘见 `docs/RAG与复盘机制详细设计.md`（可实现为 RAG-1～4 阶段，见该文档 §八）。
 
 ---
 

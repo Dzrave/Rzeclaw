@@ -2,7 +2,7 @@ import type { RzeclawConfig } from "../config.js";
 import { getRoleFragment } from "../config.js";
 import { getLLMClient } from "../llm/index.js";
 import type { LLMMessage } from "../llm/types.js";
-import { type ToolResult, type ToolDef } from "../tools/index.js";
+import type { ToolResult, ToolDef } from "../tools/index.js";
 import { getMergedTools } from "../tools/merged.js";
 import { validateToolArgs } from "../tools/validation.js";
 import { buildSystemPrompt } from "../prompts/system.js";
@@ -85,6 +85,8 @@ export async function runAgentLoop(params: {
   sessionFlags?: { privacy?: boolean };
   /** WO-SEC-010: 本会话已授权的 scope 列表（如 ["file_write"]），同 scope 不再弹确认 */
   sessionGrantedScopes?: string[];
+  /** WO-BT-022: 会话黑板，与 flow 共享；取槽注入 system，并可提供 write_slot 工具 */
+  blackboard?: Record<string, string>;
   onText?: (chunk: string) => void;
 }): Promise<{ content: string; messages: Message[]; sessionId: string; citedMemoryIds?: string[] }> {
   const sessionId = params.sessionId ?? randomUUID();
@@ -98,6 +100,26 @@ export async function runAgentLoop(params: {
   if (params.sessionFlags?.privacy) {
     const privacyAllowlist = new Set(["read", "env_summary"]);
     mergedTools = mergedTools.filter((t) => privacyAllowlist.has(t.name));
+  }
+  if (params.blackboard) {
+    mergedTools = [
+      ...mergedTools,
+      {
+        name: "write_slot",
+        description: "Write a value to the session blackboard (slot). Use to store key-value data for this session.",
+        inputSchema: {
+          type: "object",
+          properties: { key: { type: "string", description: "Slot name" }, value: { type: "string", description: "Slot value" } },
+          required: ["key", "value"],
+        },
+        handler: async (args: Record<string, unknown>) => {
+          const k = String(args.key ?? "");
+          const v = String(args.value ?? "");
+          if (k) params.blackboard![k] = v;
+          return { ok: true, content: "OK" };
+        },
+      } as ToolDef,
+    ];
   }
   const tools = toLLMTools(mergedTools);
   let systemPrompt = buildSystemPrompt(mergedTools);
@@ -115,6 +137,10 @@ export async function runAgentLoop(params: {
   }
   if (params.sessionSummary) {
     systemPrompt += "\n\n[Previous context summary]\n" + params.sessionSummary;
+  }
+  if (params.blackboard && Object.keys(params.blackboard).length > 0) {
+    const lines = Object.entries(params.blackboard).map(([k, v]) => `${k}: ${v}`);
+    systemPrompt += "\n\n[Session slots (blackboard)]\n" + lines.join("\n");
   }
   const roleFragment = getRoleFragment(params.config, params.sessionType);
   if (roleFragment) {

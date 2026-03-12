@@ -60,8 +60,27 @@ export function loadConfig(overridePath) {
         }
         if (data.evolution != null && typeof data.evolution === "object") {
             const ev = data.evolution;
+            const it = ev.insertTree;
             base.evolution = {
                 bootstrapDocPath: typeof ev.bootstrapDocPath === "string" ? ev.bootstrapDocPath : undefined,
+                insertTree: it != null && typeof it === "object"
+                    ? (() => {
+                        const t = it;
+                        return {
+                            enabled: t.enabled === true,
+                            autoRun: t.autoRun === true,
+                            requireUserConfirmation: t.requireUserConfirmation === true,
+                            allowHighRiskOp: t.allowHighRiskOp === true,
+                            targetFlowId: typeof t.targetFlowId === "string" ? t.targetFlowId : undefined,
+                            targetSelectorNodeId: typeof t.targetSelectorNodeId === "string" ? t.targetSelectorNodeId : undefined,
+                            evolvedSkillsDir: typeof t.evolvedSkillsDir === "string" ? t.evolvedSkillsDir : undefined,
+                            sandboxTimeoutMs: typeof t.sandboxTimeoutMs === "number" && t.sandboxTimeoutMs > 0
+                                ? t.sandboxTimeoutMs
+                                : undefined,
+                            maxRetries: typeof t.maxRetries === "number" && t.maxRetries >= 0 ? t.maxRetries : undefined,
+                        };
+                    })()
+                    : undefined,
             };
         }
         if (data.planning != null && typeof data.planning === "object") {
@@ -162,6 +181,109 @@ export function loadConfig(overridePath) {
                 intervalDaysSchedule: typeof d.intervalDaysSchedule === "number" && d.intervalDaysSchedule > 0
                     ? d.intervalDaysSchedule
                     : undefined,
+            };
+        }
+        if (data.flows != null && typeof data.flows === "object") {
+            const f = data.flows;
+            const fr = f.failureReplacement;
+            const gf = f.generateFlow;
+            base.flows = {
+                enabled: f.enabled === true,
+                libraryPath: typeof f.libraryPath === "string" ? f.libraryPath : undefined,
+                routes: Array.isArray(f.routes)
+                    ? f.routes.filter((e) => e != null &&
+                        typeof e.hint === "string" &&
+                        typeof e.flowId === "string")
+                    : undefined,
+                failureReplacement: fr != null && typeof fr === "object"
+                    ? (() => {
+                        const r = fr;
+                        const thr = r.failureRateThreshold;
+                        const minS = r.minSamples;
+                        const consec = r.consecutiveFailuresThreshold;
+                        return {
+                            enabled: r.enabled === true,
+                            failureRateThreshold: typeof thr === "number" && thr >= 0 && thr <= 1 ? thr : undefined,
+                            minSamples: typeof minS === "number" && minS >= 0 ? minS : undefined,
+                            consecutiveFailuresThreshold: typeof consec === "number" && consec >= 1 ? consec : undefined,
+                            markOnly: r.markOnly === true,
+                            async: r.async !== false,
+                        };
+                    })()
+                    : undefined,
+                generateFlow: gf != null && typeof gf === "object"
+                    ? {
+                        enabled: gf.enabled === true,
+                        triggerOnNoMatch: gf.triggerOnNoMatch === true,
+                        triggerPattern: typeof gf.triggerPattern === "string"
+                            ? gf.triggerPattern
+                            : undefined,
+                    }
+                    : undefined,
+            };
+        }
+        if (data.vectorEmbedding != null && typeof data.vectorEmbedding === "object") {
+            const ve = data.vectorEmbedding;
+            const coll = ve.collections;
+            const collections = {};
+            if (coll != null && typeof coll === "object") {
+                for (const [name, c] of Object.entries(coll)) {
+                    if (c != null && typeof c === "object") {
+                        const cc = c;
+                        collections[name] = {
+                            enabled: cc.enabled === true,
+                            pathOverride: typeof cc.pathOverride === "string" ? cc.pathOverride : undefined,
+                        };
+                    }
+                }
+            }
+            base.vectorEmbedding = {
+                enabled: ve.enabled === true,
+                provider: ve.provider === "ollama" || ve.provider === "openai-compatible"
+                    ? ve.provider
+                    : undefined,
+                endpoint: typeof ve.endpoint === "string" ? ve.endpoint : undefined,
+                model: typeof ve.model === "string" ? ve.model : undefined,
+                indexStoragePath: typeof ve.indexStoragePath === "string" ? ve.indexStoragePath : undefined,
+                collections: Object.keys(collections).length > 0 ? collections : undefined,
+                motivationThreshold: typeof ve.motivationThreshold === "number" &&
+                    ve.motivationThreshold >= 0 &&
+                    ve.motivationThreshold <= 1
+                    ? ve.motivationThreshold
+                    : undefined,
+            };
+        }
+        if (data.localModel != null && typeof data.localModel === "object") {
+            const lm = data.localModel;
+            const modes = lm.modes;
+            const ic = modes != null && typeof modes === "object" && modes.intentClassifier != null
+                ? modes.intentClassifier
+                : undefined;
+            base.localModel = {
+                enabled: lm.enabled === true,
+                provider: lm.provider === "ollama" || lm.provider === "openai-compatible" ? lm.provider : undefined,
+                endpoint: typeof lm.endpoint === "string" ? lm.endpoint : undefined,
+                model: typeof lm.model === "string" ? lm.model : undefined,
+                timeoutMs: typeof lm.timeoutMs === "number" && lm.timeoutMs > 0 ? lm.timeoutMs : undefined,
+                modes: ic != null && typeof ic === "object"
+                    ? {
+                        intentClassifier: {
+                            enabled: ic.enabled === true,
+                            confidenceThreshold: typeof ic.confidenceThreshold === "number" &&
+                                ic.confidenceThreshold >= 0 &&
+                                ic.confidenceThreshold <= 1
+                                ? ic.confidenceThreshold
+                                : undefined,
+                        },
+                    }
+                    : undefined,
+            };
+        }
+        if (data.retrospective != null && typeof data.retrospective === "object") {
+            const rr = data.retrospective;
+            base.retrospective = {
+                enabled: rr.enabled === true,
+                cron: typeof rr.cron === "string" ? rr.cron : undefined,
             };
         }
         if (data.ideOperation != null && typeof data.ideOperation === "object") {
@@ -289,10 +411,17 @@ export function getApiKey(config) {
     const envName = resolved.apiKeyEnv ?? "ANTHROPIC_API_KEY";
     return process.env[envName]?.trim() || undefined;
 }
-/** 当前配置下是否可调用 LLM（Ollama 无需 Key；云端需已配置对应 API Key） */
+/** 当前配置下是否可调用主 LLM（runAgentLoop 可用：Ollama 或云端已配置 API Key） */
 export function isLlmReady(config) {
     const resolved = getResolvedLlm(config);
     if (resolved.provider === "ollama")
         return true;
     return !!getApiKey(config);
+}
+/** WO-LM-003: 本地模型意图分类是否可用（enabled + endpoint + model + modes.intentClassifier.enabled） */
+export function isLocalIntentClassifierAvailable(config) {
+    const lm = config.localModel;
+    if (!lm?.enabled || !lm.endpoint || !lm.model)
+        return false;
+    return lm.modes?.intentClassifier?.enabled === true;
 }

@@ -12,10 +12,27 @@ export type MemoryConfig = {
   coldAfterDays?: number;
 };
 
-/** WO-404: Bootstrap / 自举文档路径等 */
+/** WO-BT-024: 进化插入树配置 */
+export type InsertTreeConfig = {
+  enabled?: boolean;
+  autoRun?: boolean;
+  requireUserConfirmation?: boolean;
+  allowHighRiskOp?: boolean;
+  /** 目标 flowId（插入新节点的 BT） */
+  targetFlowId?: string;
+  /** 目标 Selector 的 nodeId；若为空则用 root */
+  targetSelectorNodeId?: string;
+  /** 进化产物存放目录，相对 workspace，默认 .rzeclaw/evolved_skills */
+  evolvedSkillsDir?: string;
+  sandboxTimeoutMs?: number;
+  maxRetries?: number;
+};
+
+/** WO-404: Bootstrap / 自举文档路径等；WO-BT-024 进化插入树 */
 export type EvolutionConfig = {
   /** Path relative to workspace or absolute; default WORKSPACE_BEST_PRACTICES.md in workspace */
   bootstrapDocPath?: string;
+  insertTree?: InsertTreeConfig;
 };
 
 /** WO-403: 轻量规划，可选开启 */
@@ -118,6 +135,107 @@ export type DiagnosticConfig = {
   intervalDaysSchedule?: number;
 };
 
+/** Phase 13 WO-BT-001: 流程（行为树/状态机）配置 */
+export type FlowsSlotRule = {
+  name: string;
+  pattern: string;
+};
+
+export type FlowsRouteEntry = {
+  hint: string;
+  flowId: string;
+  slotRules?: FlowsSlotRule[];
+};
+
+/** WO-BT-018: 失败分支替换策略 */
+export type FailureReplacementConfig = {
+  /** 是否启用失败率/连续失败触发 */
+  enabled?: boolean;
+  /** 失败率阈值 0~1，超过则触发 */
+  failureRateThreshold?: number;
+  /** 至少多少条执行记录后才计算失败率（避免样本过少） */
+  minSamples?: number;
+  /** 最近连续失败次数达到此值则触发 */
+  consecutiveFailuresThreshold?: number;
+  /** 为 true 时仅标记 meta.flaggedForReplacement，不调用 runTopologyIteration */
+  markOnly?: boolean;
+  /** 为 true 时异步执行 runTopologyIteration，不阻塞 chat 响应 */
+  async?: boolean;
+};
+
+/** WO-LM-001: 本地模型意图分类模式；仅用于路由，不替代主 LLM */
+export type IntentClassifierModeConfig = {
+  /** 是否在规则未命中时调用本地模型得到 router_v1 */
+  enabled?: boolean;
+  /** 采纳 ROUTE_TO_LOCAL_FLOW 的最低置信度 0~1，默认 0.7 */
+  confidenceThreshold?: number;
+};
+
+/** WO-LM-001: 本地模型配置（意图分类等）；不随包分发模型，仅对接用户自建服务 */
+export type LocalModelConfig = {
+  /** 总开关；未配置或 false 时不调用本地模型 */
+  enabled?: boolean;
+  /** ollama | openai-compatible */
+  provider?: "ollama" | "openai-compatible";
+  /** 服务地址，如 http://127.0.0.1:11434 */
+  endpoint?: string;
+  /** 模型名，如 qwen2.5:3b、gpt-3.5-turbo */
+  model?: string;
+  /** 请求超时毫秒，默认 15000 */
+  timeoutMs?: number;
+  /** 模式：意图分类等 */
+  modes?: {
+    intentClassifier?: IntentClassifierModeConfig;
+  };
+};
+
+/** RAG-1: 向量嵌入与检索；单集合配置 */
+export type VectorEmbeddingCollectionConfig = {
+  enabled?: boolean;
+  /** 可选：该集合索引路径覆盖默认 indexStoragePath 下子目录 */
+  pathOverride?: string;
+};
+
+/** RAG-1: vectorEmbedding 配置扩展 */
+export type VectorEmbeddingConfig = {
+  enabled?: boolean;
+  /** ollama | openai-compatible；ollama 用 /api/embeddings */
+  provider?: "ollama" | "openai-compatible";
+  /** 嵌入服务 URL，如 http://127.0.0.1:11434 */
+  endpoint?: string;
+  /** 模型名，如 nomic-embed-text、text-embedding-3-small */
+  model?: string;
+  /** 索引存储路径，相对 workspace，如 .rzeclaw/embeddings */
+  indexStoragePath?: string;
+  /** 各集合（motivation、skills、flows、external_* 等） */
+  collections?: Record<string, VectorEmbeddingCollectionConfig>;
+  /** RAG-2: 动机 RAG 命中阈值 0~1 */
+  motivationThreshold?: number;
+};
+
+/** WO-BT-014: LLM 触发生成 flow；用户一句话 → 生成请求 → createFlow(spec) */
+export type GenerateFlowConfig = {
+  /** 是否启用「无匹配时尝试用 LLM 生成新 flow」或显式请求生成 */
+  enabled?: boolean;
+  /** 当路由无匹配时是否尝试生成（否则仅显式请求时生成） */
+  triggerOnNoMatch?: boolean;
+  /** 显式触发短语的正则或子串，如「做一个.*流程」；未配置时用默认模式 */
+  triggerPattern?: string;
+};
+
+export type FlowsConfig = {
+  /** 关闭则所有请求仍走 Agent；未配置时默认关闭 */
+  enabled?: boolean;
+  /** 相对 workspace 的目录，存放 flow JSON，如 .rzeclaw/flows */
+  libraryPath?: string;
+  /** 意图/hint 到 flowId 的映射；可选 slotRules 从 message 抽取 params */
+  routes?: FlowsRouteEntry[];
+  /** WO-BT-018: 失败分支替换策略 */
+  failureReplacement?: FailureReplacementConfig;
+  /** WO-BT-014: LLM 触发生成 flow */
+  generateFlow?: GenerateFlowConfig;
+};
+
 /** IDE/PC 操作能力（WO-IDE-001）：L2/L3 默认关闭，显式启用 */
 export type IdeOperationConfirmPolicy = {
   /** 需要确认的工具名列表，如 ["ui_act", "bash"] */
@@ -217,6 +335,14 @@ export type RzeclawConfig = {
   knowledge?: KnowledgeConfig;
   /** Phase 12: 自我诊断报告与改进建议 */
   diagnostic?: DiagnosticConfig;
+  /** Phase 13 WO-BT-001: 行为树/状态机流程；enabled 未配置时默认关闭 */
+  flows?: FlowsConfig;
+  /** RAG-1: 向量嵌入与检索（内源/外源 RAG、动机 RAG） */
+  vectorEmbedding?: VectorEmbeddingConfig;
+  /** WO-LM-001: 本地模型（意图分类等）；默认不配置，不调用 */
+  localModel?: LocalModelConfig;
+  /** RAG-4: 复盘机制；cron 为定时触发（如 "0 0 * * *" 每日零点） */
+  retrospective?: { enabled?: boolean; cron?: string };
   /** IDE/PC 操作：L2 UI 自动化、L3 键鼠/视觉、超时、确认策略（WO-IDE-001） */
   ideOperation?: IdeOperationConfig;
   /** WO-SEC: 安全与隐私（危险命令、process 保护、权限域） */
@@ -282,8 +408,30 @@ export function loadConfig(overridePath?: string): RzeclawConfig {
     }
     if (data.evolution != null && typeof data.evolution === "object") {
       const ev = data.evolution as Record<string, unknown>;
+      const it = ev.insertTree;
       base.evolution = {
         bootstrapDocPath: typeof ev.bootstrapDocPath === "string" ? ev.bootstrapDocPath : undefined,
+        insertTree:
+          it != null && typeof it === "object"
+            ? (() => {
+                const t = it as Record<string, unknown>;
+                return {
+                  enabled: t.enabled === true,
+                  autoRun: t.autoRun === true,
+                  requireUserConfirmation: t.requireUserConfirmation === true,
+                  allowHighRiskOp: t.allowHighRiskOp === true,
+                  targetFlowId: typeof t.targetFlowId === "string" ? t.targetFlowId : undefined,
+                  targetSelectorNodeId: typeof t.targetSelectorNodeId === "string" ? t.targetSelectorNodeId : undefined,
+                  evolvedSkillsDir: typeof t.evolvedSkillsDir === "string" ? t.evolvedSkillsDir : undefined,
+                  sandboxTimeoutMs:
+                    typeof t.sandboxTimeoutMs === "number" && t.sandboxTimeoutMs > 0
+                      ? t.sandboxTimeoutMs
+                      : undefined,
+                  maxRetries:
+                    typeof t.maxRetries === "number" && t.maxRetries >= 0 ? t.maxRetries : undefined,
+                };
+              })()
+            : undefined,
       };
     }
     if (data.planning != null && typeof data.planning === "object") {
@@ -397,6 +545,126 @@ export function loadConfig(overridePath?: string): RzeclawConfig {
           typeof d.intervalDaysSchedule === "number" && d.intervalDaysSchedule > 0
             ? d.intervalDaysSchedule
             : undefined,
+      };
+    }
+    if (data.flows != null && typeof data.flows === "object") {
+      const f = data.flows as Record<string, unknown>;
+      const fr = f.failureReplacement;
+      const gf = f.generateFlow;
+      base.flows = {
+        enabled: f.enabled === true,
+        libraryPath: typeof f.libraryPath === "string" ? f.libraryPath : undefined,
+        routes: Array.isArray(f.routes)
+          ? (f.routes as unknown[]).filter(
+              (e): e is FlowsRouteEntry =>
+                e != null &&
+                typeof (e as FlowsRouteEntry).hint === "string" &&
+                typeof (e as FlowsRouteEntry).flowId === "string"
+            )
+          : undefined,
+        failureReplacement:
+          fr != null && typeof fr === "object"
+            ? (() => {
+                const r = fr as Record<string, unknown>;
+                const thr = r.failureRateThreshold;
+                const minS = r.minSamples;
+                const consec = r.consecutiveFailuresThreshold;
+                return {
+                  enabled: r.enabled === true,
+                  failureRateThreshold:
+                    typeof thr === "number" && thr >= 0 && thr <= 1 ? thr : undefined,
+                  minSamples: typeof minS === "number" && minS >= 0 ? minS : undefined,
+                  consecutiveFailuresThreshold:
+                    typeof consec === "number" && consec >= 1 ? consec : undefined,
+                  markOnly: r.markOnly === true,
+                  async: r.async !== false,
+                };
+              })()
+            : undefined,
+        generateFlow:
+          gf != null && typeof gf === "object"
+            ? {
+                enabled: (gf as Record<string, unknown>).enabled === true,
+                triggerOnNoMatch: (gf as Record<string, unknown>).triggerOnNoMatch === true,
+                triggerPattern:
+                  typeof (gf as Record<string, unknown>).triggerPattern === "string"
+                    ? ((gf as Record<string, unknown>).triggerPattern as string)
+                    : undefined,
+              }
+            : undefined,
+      };
+    }
+    if (data.vectorEmbedding != null && typeof data.vectorEmbedding === "object") {
+      const ve = data.vectorEmbedding as Record<string, unknown>;
+      const coll = ve.collections;
+      const collections: Record<string, VectorEmbeddingCollectionConfig> = {};
+      if (coll != null && typeof coll === "object") {
+        for (const [name, c] of Object.entries(coll)) {
+          if (c != null && typeof c === "object") {
+            const cc = c as Record<string, unknown>;
+            collections[name] = {
+              enabled: cc.enabled === true,
+              pathOverride:
+                typeof cc.pathOverride === "string" ? cc.pathOverride : undefined,
+            };
+          }
+        }
+      }
+      base.vectorEmbedding = {
+        enabled: ve.enabled === true,
+        provider:
+          ve.provider === "ollama" || ve.provider === "openai-compatible"
+            ? ve.provider
+            : undefined,
+        endpoint: typeof ve.endpoint === "string" ? ve.endpoint : undefined,
+        model: typeof ve.model === "string" ? ve.model : undefined,
+        indexStoragePath:
+          typeof ve.indexStoragePath === "string" ? ve.indexStoragePath : undefined,
+        collections: Object.keys(collections).length > 0 ? collections : undefined,
+        motivationThreshold:
+          typeof ve.motivationThreshold === "number" &&
+          ve.motivationThreshold >= 0 &&
+          ve.motivationThreshold <= 1
+            ? ve.motivationThreshold
+            : undefined,
+      };
+    }
+    if (data.localModel != null && typeof data.localModel === "object") {
+      const lm = data.localModel as Record<string, unknown>;
+      const modes = lm.modes;
+      const ic =
+        modes != null && typeof modes === "object" && (modes as Record<string, unknown>).intentClassifier != null
+          ? ((modes as Record<string, unknown>).intentClassifier as Record<string, unknown>)
+          : undefined;
+      base.localModel = {
+        enabled: lm.enabled === true,
+        provider:
+          lm.provider === "ollama" || lm.provider === "openai-compatible" ? lm.provider : undefined,
+        endpoint: typeof lm.endpoint === "string" ? lm.endpoint : undefined,
+        model: typeof lm.model === "string" ? lm.model : undefined,
+        timeoutMs:
+          typeof lm.timeoutMs === "number" && lm.timeoutMs > 0 ? lm.timeoutMs : undefined,
+        modes:
+          ic != null && typeof ic === "object"
+            ? {
+                intentClassifier: {
+                  enabled: ic.enabled === true,
+                  confidenceThreshold:
+                    typeof ic.confidenceThreshold === "number" &&
+                    ic.confidenceThreshold >= 0 &&
+                    ic.confidenceThreshold <= 1
+                      ? ic.confidenceThreshold
+                      : undefined,
+                },
+              }
+            : undefined,
+      };
+    }
+    if (data.retrospective != null && typeof data.retrospective === "object") {
+      const rr = data.retrospective as Record<string, unknown>;
+      base.retrospective = {
+        enabled: rr.enabled === true,
+        cron: typeof rr.cron === "string" ? rr.cron : undefined,
       };
     }
     if (data.ideOperation != null && typeof data.ideOperation === "object") {
@@ -548,9 +816,16 @@ export function getApiKey(config: RzeclawConfig): string | undefined {
   return process.env[envName]?.trim() || undefined;
 }
 
-/** 当前配置下是否可调用 LLM（Ollama 无需 Key；云端需已配置对应 API Key） */
+/** 当前配置下是否可调用主 LLM（runAgentLoop 可用：Ollama 或云端已配置 API Key） */
 export function isLlmReady(config: RzeclawConfig): boolean {
   const resolved = getResolvedLlm(config);
   if (resolved.provider === "ollama") return true;
   return !!getApiKey(config);
+}
+
+/** WO-LM-003: 本地模型意图分类是否可用（enabled + endpoint + model + modes.intentClassifier.enabled） */
+export function isLocalIntentClassifierAvailable(config: RzeclawConfig): boolean {
+  const lm = config.localModel;
+  if (!lm?.enabled || !lm.endpoint || !lm.model) return false;
+  return lm.modes?.intentClassifier?.enabled === true;
 }

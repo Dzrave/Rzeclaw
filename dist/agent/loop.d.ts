@@ -20,6 +20,8 @@ export declare function runAgentLoop(params: {
     };
     /** WO-SEC-010: 本会话已授权的 scope 列表（如 ["file_write"]），同 scope 不再弹确认 */
     sessionGrantedScopes?: string[];
+    /** WO-BT-022: 会话黑板，与 flow 共享；取槽注入 system，并可提供 write_slot 工具 */
+    blackboard?: Record<string, string>;
     onText?: (chunk: string) => void;
 }): Promise<{
     content: string;
