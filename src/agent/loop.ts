@@ -77,6 +77,8 @@ export async function runAgentLoop(params: {
   sessionGoal?: string;
   /** Optional L0 summary for long sessions (summary + recent 2 rounds) */
   sessionSummary?: string;
+  /** Phase 17: 5 天滚动账本格式化的前文，注入 system prompt；隐私会话时由调用方传空或不传 */
+  rollingContext?: string;
   /** Phase 10: 会话类型，用于注入角色片段 */
   sessionType?: string;
   /** Phase 10: 蜂群管理时的团队 id，用于注入协调范围 */
@@ -88,6 +90,21 @@ export async function runAgentLoop(params: {
   /** WO-BT-022: 会话黑板，与 flow 共享；取槽注入 system，并可提供 write_slot 工具 */
   blackboard?: Record<string, string>;
   onText?: (chunk: string) => void;
+  /** Phase 14B: 覆盖角色片段（如 Agent 蓝图的 systemPrompt） */
+  roleFragmentOverride?: string;
+  /** Phase 14B: 仅使用名称在此列表中的工具；未配置则用全局合并结果 */
+  toolsFilter?: string[];
+  /** Phase 14B: 写入 ops.log 的 Agent 实例/蓝图 id */
+  agentId?: string;
+  blueprintId?: string;
+  /** Phase 14B WO-1439: 局部记忆 — 使用该 scope 的 store 做检索；includeGlobal 时合并全局只读 */
+  localMemoryScope?: {
+    workspaceId: string;
+    retrieveLimit: number;
+    includeGlobal?: boolean;
+  };
+  /** Phase 14C: 覆盖工具列表（如含 delegate_to_agent）；未传则用 getMergedTools + write_slot */
+  toolsOverride?: ToolDef[];
 }): Promise<{ content: string; messages: Message[]; sessionId: string; citedMemoryIds?: string[] }> {
   const sessionId = params.sessionId ?? randomUUID();
   const observabilityDir = path.join(path.resolve(params.config.workspace), ".rzeclaw");
@@ -96,30 +113,43 @@ export async function runAgentLoop(params: {
   const llmClient = getLLMClient(params.config);
   const workspace = path.resolve(params.config.workspace);
 
-  let mergedTools = await getMergedTools(params.config, workspace);
+  let mergedTools: ToolDef[];
+  if (params.toolsOverride?.length) {
+    mergedTools = params.toolsOverride;
+  } else {
+    mergedTools = await getMergedTools(params.config, workspace);
+    if (params.toolsFilter?.length) {
+      const set = new Set(params.toolsFilter);
+      mergedTools = mergedTools.filter((t) => set.has(t.name));
+    }
   if (params.sessionFlags?.privacy) {
-    const privacyAllowlist = new Set(["read", "env_summary"]);
-    mergedTools = mergedTools.filter((t) => privacyAllowlist.has(t.name));
+    const policy = params.config.security?.privacySessionToolPolicy ?? "allow_all";
+    if (policy === "none") mergedTools = [];
+    else if (policy === "read_only") {
+      const privacyAllowlist = new Set(["read", "env_summary"]);
+      mergedTools = mergedTools.filter((t) => privacyAllowlist.has(t.name));
+    }
   }
-  if (params.blackboard) {
-    mergedTools = [
-      ...mergedTools,
-      {
-        name: "write_slot",
-        description: "Write a value to the session blackboard (slot). Use to store key-value data for this session.",
-        inputSchema: {
-          type: "object",
-          properties: { key: { type: "string", description: "Slot name" }, value: { type: "string", description: "Slot value" } },
-          required: ["key", "value"],
-        },
-        handler: async (args: Record<string, unknown>) => {
-          const k = String(args.key ?? "");
-          const v = String(args.value ?? "");
-          if (k) params.blackboard![k] = v;
-          return { ok: true, content: "OK" };
-        },
-      } as ToolDef,
-    ];
+    if (params.blackboard) {
+      mergedTools = [
+        ...mergedTools,
+        {
+          name: "write_slot",
+          description: "Write a value to the session blackboard (slot). Use to store key-value data for this session.",
+          inputSchema: {
+            type: "object",
+            properties: { key: { type: "string", description: "Slot name" }, value: { type: "string", description: "Slot value" } },
+            required: ["key", "value"],
+          },
+          handler: async (args: Record<string, unknown>) => {
+            const k = String(args.key ?? "");
+            const v = String(args.value ?? "");
+            if (k) params.blackboard![k] = v;
+            return { ok: true, content: "OK" };
+          },
+        } as ToolDef,
+      ];
+    }
   }
   const tools = toLLMTools(mergedTools);
   let systemPrompt = buildSystemPrompt(mergedTools);
@@ -135,6 +165,9 @@ export async function runAgentLoop(params: {
   if (sessionGoal) {
     systemPrompt += "\n\n[Current session goal]\n" + sessionGoal;
   }
+  if (params.rollingContext) {
+    systemPrompt += "\n\n[Rolling context]\n" + params.rollingContext;
+  }
   if (params.sessionSummary) {
     systemPrompt += "\n\n[Previous context summary]\n" + params.sessionSummary;
   }
@@ -142,7 +175,7 @@ export async function runAgentLoop(params: {
     const lines = Object.entries(params.blackboard).map(([k, v]) => `${k}: ${v}`);
     systemPrompt += "\n\n[Session slots (blackboard)]\n" + lines.join("\n");
   }
-  const roleFragment = getRoleFragment(params.config, params.sessionType);
+  const roleFragment = params.roleFragmentOverride ?? getRoleFragment(params.config, params.sessionType);
   if (roleFragment) {
     systemPrompt += "\n\n[Role]\n" + roleFragment;
   }
@@ -176,17 +209,60 @@ export async function runAgentLoop(params: {
   }
   let citedMemoryIds: string[] = [];
   if (params.config.memory?.enabled && !params.sessionFlags?.privacy) {
-    const store = createStore(path.resolve(params.config.workspace), params.config.memory.workspaceId);
     const taskHint = extractTaskHint(params.userMessage);
-    const isKnowledge = params.sessionType === "knowledge";
-    const retrieveLimit = isKnowledge
-      ? (params.config.knowledge?.retrieveLimit ?? 10)
-      : 5;
-    const entries = await retrieve(store, params.userMessage, {
-      workspace_id: params.config.memory.workspaceId ?? path.resolve(params.config.workspace),
-      limit: retrieveLimit,
-      task_hint: taskHint || undefined,
-    });
+    let entries: Awaited<ReturnType<typeof retrieve>>;
+
+    if (params.localMemoryScope) {
+      const agentStore = createStore(path.resolve(params.config.workspace), params.localMemoryScope.workspaceId);
+      if (params.localMemoryScope.includeGlobal && params.config.memory.workspaceId != null) {
+        const globalStore = createStore(path.resolve(params.config.workspace), params.config.memory.workspaceId);
+        const [fromAgent, fromGlobal] = await Promise.all([
+          retrieve(agentStore, params.userMessage, {
+            workspace_id: params.localMemoryScope.workspaceId,
+            limit: params.localMemoryScope.retrieveLimit,
+            task_hint: taskHint || undefined,
+          }),
+          retrieve(globalStore, params.userMessage, {
+            workspace_id: params.config.memory.workspaceId ?? path.resolve(params.config.workspace),
+            limit: params.localMemoryScope.retrieveLimit,
+            task_hint: taskHint || undefined,
+          }),
+        ]);
+        const seen = new Set<string>();
+        entries = [];
+        for (const e of fromAgent) {
+          if (!seen.has(e.id)) {
+            seen.add(e.id);
+            entries.push(e);
+          }
+        }
+        for (const e of fromGlobal) {
+          if (!seen.has(e.id)) {
+            seen.add(e.id);
+            entries.push(e);
+          }
+        }
+        entries = entries.slice(0, params.localMemoryScope.retrieveLimit);
+      } else {
+        entries = await retrieve(agentStore, params.userMessage, {
+          workspace_id: params.localMemoryScope.workspaceId,
+          limit: params.localMemoryScope.retrieveLimit,
+          task_hint: taskHint || undefined,
+        });
+      }
+    } else {
+      const store = createStore(path.resolve(params.config.workspace), params.config.memory.workspaceId);
+      const isKnowledge = params.sessionType === "knowledge";
+      const retrieveLimit = isKnowledge
+        ? (params.config.knowledge?.retrieveLimit ?? 10)
+        : 5;
+      entries = await retrieve(store, params.userMessage, {
+        workspace_id: params.config.memory.workspaceId ?? path.resolve(params.config.workspace),
+        limit: retrieveLimit,
+        task_hint: taskHint || undefined,
+      });
+    }
+
     citedMemoryIds = entries.map((e) => e.id);
     const blocks = formatAsCitedBlocks(entries);
     if (blocks) {
@@ -239,6 +315,10 @@ export async function runAgentLoop(params: {
         input: Record<string, unknown>;
       }>;
       const toolResults: Array<{ type: "tool_result"; tool_use_id: string; content: string }> = [];
+      const opLogOpts =
+        params.sessionFlags?.privacy && params.config.security?.opsLogPrivacySessionPolicy === "omit"
+          ? { skipWrite: true }
+          : undefined;
 
       for (const block of toolUseBlocks) {
         const tool = mergedTools.find((t) => t.name === block.name);
@@ -270,7 +350,10 @@ export async function runAgentLoop(params: {
                 result_summary: "blocked: dangerous command",
                 ts: new Date().toISOString(),
                 risk_level: "high",
-              });
+                ...(params.agentId != null && { agentId: params.agentId }),
+                ...(params.blueprintId != null && { blueprintId: params.blueprintId }),
+                ...(params.sessionId ? { sessionId: params.sessionId } : {}),
+              }, opLogOpts);
               continue;
             }
             if (dangerous.mode === "dryRunOnly" && block.input.dryRun !== true) {
@@ -286,7 +369,10 @@ export async function runAgentLoop(params: {
                 result_summary: "blocked: dangerous command (dryRun only)",
                 ts: new Date().toISOString(),
                 risk_level: "high",
-              });
+                ...(params.agentId != null && { agentId: params.agentId }),
+                ...(params.blueprintId != null && { blueprintId: params.blueprintId }),
+                ...(params.sessionId ? { sessionId: params.sessionId } : {}),
+              }, opLogOpts);
               continue;
             }
             if (dangerous.mode === "confirm") requiresConfirmation = true;
@@ -314,7 +400,10 @@ export async function runAgentLoop(params: {
               result_summary: "blocked: protected pid",
               ts: new Date().toISOString(),
               risk_level: "high",
-            });
+            ...(params.agentId != null && { agentId: params.agentId }),
+            ...(params.blueprintId != null && { blueprintId: params.blueprintId }),
+            ...(params.sessionId ? { sessionId: params.sessionId } : {}),
+            }, opLogOpts);
             continue;
           }
           if (params.config.security?.processKillRequireConfirm === true) {
@@ -336,7 +425,10 @@ export async function runAgentLoop(params: {
             result_summary: "denied: permission scope",
             ts: new Date().toISOString(),
             risk_level: "high",
-          });
+          ...(params.agentId != null && { agentId: params.agentId }),
+          ...(params.blueprintId != null && { blueprintId: params.blueprintId }),
+          ...(params.sessionId ? { sessionId: params.sessionId } : {}),
+          }, opLogOpts);
           continue;
         }
         if (
@@ -365,7 +457,10 @@ export async function runAgentLoop(params: {
             result_summary: "skipped: requires user confirmation",
             ts: new Date().toISOString(),
             risk_level: classifyOpRisk(block.name, block.input, "skipped: requires user confirmation"),
-          });
+            ...(params.agentId != null && { agentId: params.agentId }),
+            ...(params.blueprintId != null && { blueprintId: params.blueprintId }),
+            ...(params.sessionId ? { sessionId: params.sessionId } : {}),
+          }, opLogOpts);
           continue;
         }
         const timeoutMs =
@@ -398,7 +493,10 @@ export async function runAgentLoop(params: {
           ...(result.undoHint ? { undo_hint: result.undoHint } : {}),
           ts: new Date().toISOString(),
           risk_level: classifyOpRisk(block.name, block.input, resultSummary),
-        });
+          ...(params.agentId != null && { agentId: params.agentId }),
+          ...(params.blueprintId != null && { blueprintId: params.blueprintId }),
+          ...(params.sessionId ? { sessionId: params.sessionId } : {}),
+        }, opLogOpts);
       }
 
       apiMessages.push({

@@ -109,4 +109,31 @@
 
 ---
 
+## 五、下一阶段与可选设计文档索引
+
+以下为**下一阶段**（Event Bus、多 Agent、协作）及**其他待实现/可选**能力的**详细设计文档**及**实施计划与工单文档**。实施前需先确认设计，再按工单文档排期执行。
+
+### 5.1 设计文档与工单对应
+
+| 类型 | 设计文档 | 实施计划/工单文档 | 工单范围 |
+|------|----------|-------------------|----------|
+| **下一阶段** | `EVENT_BUS_AS_HUB_DESIGN.md` | `PHASE14_IMPLEMENTATION_PLAN.md`、`PHASE14_EVENT_BUS_WORK_ORDERS.md` | WO-1401～1429 |
+| **下一阶段** | `MULTI_AGENT_ENTITY_DESIGN.md` | 同上、`PHASE14_MULTI_AGENT_WORK_ORDERS.md` | WO-1430～1459 |
+| **下一阶段** | `EVENT_BUS_COLLABORATION_DESIGN.md` | 同上、`PHASE14_COLLABORATION_WORK_ORDERS.md` | WO-1460～1489 |
+| **可选** | `SECURITY_PRIVACY_ENHANCEMENT_DESIGN.md` | `PHASE14_OPTIONAL_WORK_ORDERS.md` §一 | WO-1501～1519 |
+| **可选** | `CONFIG_HOT_RELOAD_DESIGN.md` | `PHASE14_OPTIONAL_WORK_ORDERS.md` §二 | WO-1520～1539 |
+| **可选** | `TASK_GATEWAY_DECOUPLING_DESIGN.md` | `PHASE14_OPTIONAL_WORK_ORDERS.md` §三 | WO-1540～1569 |
+| **可选** | `IDE_OPERATION_PHASE_E_DESIGN.md` | 设计规范；实现见 `IDE_OPERATION_IMPLEMENTATION_PLAN.md`（011～016 已实现） | — |
+| **下一阶段** | `EXPLORATION_PLANNER_DESIGN.md` | `PHASE16_EXPLORATION_IMPLEMENTATION_PLAN.md`、`PHASE16_EXPLORATION_WORK_ORDERS.md` | WO-1601～1659 |
+| **Phase 17** | `MEMORY_FOLDING_ASSESSMENT.md`、`记忆折叠构建讨论` | `MEMORY_FOLDING_IMPLEMENTATION_PLAN.md`、`MEMORY_FOLDING_WORK_ORDERS.md` | WO-1701～1752 |
+
+### 5.2 执行顺序与依赖
+
+- **Phase 14A**（Event Bus）→ **Phase 14B**（多 Agent）→ **Phase 14C**（协作）；详见 `PHASE14_IMPLEMENTATION_PLAN.md`。
+- **Phase 16**（探索层与预案 Planner）：依赖 Phase 13（Router、流程库）；可与 14 并行或于 14A 后接入 Event Bus；详见 `PHASE16_EXPLORATION_IMPLEMENTATION_PLAN.md`。
+- **Phase 17**（记忆折叠 / 5 天滑动情景记忆）：依赖现有记忆层与 Gateway；可与 14/16 并行；详见 `MEMORY_FOLDING_IMPLEMENTATION_PLAN.md`。
+- 可选阶段与 14A/B/C 无强依赖，可并行或按需实施；任务解耦建议在 14A 后实施。
+
+---
+
 *本文档为蜂群智能团队实施的总纲；具体实现细节以各 Phase 设计文档与工单文档为准。*

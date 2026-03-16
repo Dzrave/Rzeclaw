@@ -1,13 +1,36 @@
 import { WebSocketServer, type WebSocket } from "ws";
 import { runAgentLoop } from "../agent/loop.js";
 import type { RzeclawConfig } from "../config.js";
-import { createStore } from "../memory/store-jsonl.js";
+import {
+  subscribe,
+  publish,
+  requestResponse,
+  createCorrelationId,
+  publishStream,
+  TOPIC_CHAT_REQUEST,
+  TOPIC_CHAT_RESPONSE,
+  TOPIC_CHAT_STREAM,
+  TOPIC_PIPELINE_STAGE_DONE,
+  TOPIC_PLAN_READY,
+} from "../event-bus/index.js";
+import type { PipelineStageDoneEvent } from "../event-bus/collaboration-schema.js";
+import { handlePipelineStageDone, isPipelineStageDonePayload } from "../collaboration/pipeline-runner.js";
+import { subscribeToDelegateRequest } from "../collaboration/delegate.js";
+import { subscribeToSwarmBroadcast } from "../collaboration/swarm.js";
+import type { ChatRequestEvent } from "../event-bus/schema.js";
+import { handleChatRequest, runExplorationLayerForEventBus } from "./chat-executor.js";
+import { createStore, createPrivacyIsolatedStore } from "../memory/store-jsonl.js";
 import { flushToL1, generateL0Summary } from "../memory/write-pipeline.js";
-import { writeSessionSummaryFile } from "../memory/session-summary-file.js";
+import { writeSessionSummaryFile, readYesterdaySummary } from "../memory/session-summary-file.js";
+import { getRollingContextForPrompt } from "../memory/rolling-ledger.js";
+import { appendToTodayBuffer } from "../memory/today-buffer.js";
+import { runFoldForDate } from "../memory/fold.js";
+import { mergeRollingLedgerPendingIntoReport } from "../retrospective/index.js";
 import { extractTaskHint } from "../memory/task-hint.js";
 import { promoteL1ToL2 } from "../memory/l2.js";
 import { writePromptSuggestions } from "../evolution/prompt-suggestions.js";
 import { archiveCold } from "../memory/cold-archive.js";
+import { cleanupPrivacyIsolatedForSession, cleanupPrivacyIsolated } from "../memory/privacy-isolation.js";
 import { writeSnapshot, readSnapshot, listSnapshots } from "../session/snapshot.js";
 import { readCanvas, updateCanvas } from "../canvas/index.js";
 import type { CurrentPlan } from "../canvas/types.js";
@@ -23,18 +46,33 @@ import { applyEditOps } from "../flows/crud.js";
 import { addMotivationEntry } from "../rag/motivation.js";
 import type { EvolutionContext } from "../flows/evolution-insert-tree.js";
 import { singleTurnLLM } from "../llm/index.js";
-import { getGatewayApiKey, isLlmReady, isLocalIntentClassifierAvailable } from "../config.js";
+import { getGatewayApiKey, isLlmReady, isLocalIntentClassifierAvailable, reloadConfig, findConfigPath } from "../config.js";
+import { listAllInstances } from "../agents/instances.js";
+import { getAgentBlueprint } from "../agents/blueprints.js";
+import {
+  createTask,
+  setTaskRunning,
+  setTaskCompleted,
+  setTaskFailed,
+  getResult,
+  listBySession,
+  cleanupExpired,
+} from "../task-results/store.js";
+import { readLastNEntriesBySession } from "../observability/op-log.js";
 import { callIntentClassifier } from "../local-model/index.js";
 import { ingestPaths } from "../knowledge/index.js";
 import { generateReport, writeSuggestionsFile } from "../diagnostic/index.js";
 import path from "node:path";
-import { access } from "node:fs/promises";
+import { access, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 
 /** Phase 8: 每连接认证状态 */
 const authenticatedSockets = new WeakMap<WebSocket, boolean>();
+
+/** Phase 15 WO-OF-003: 本连接是否有进行中的 chat，供 office.status 返回 executing */
+const chatInProgressByWs = new WeakMap<WebSocket, boolean>();
 
 /** Phase 10 WO-1002: sessionType 为 dev | knowledge | pm | swarm_manager | general */
 /** WO-SEC-006: 隐私会话标记，为 true 时不写 L1、不持久化快照 */
@@ -52,6 +90,10 @@ type Session = {
   blackboard?: Record<string, string>;
   /** WO-BT-023: 会话级 FSM 状态 */
   sessionState?: SessionFSMState;
+  /** WO-1507: 本会话已授权 scope（本次会话允许），同 scope 不再弹确认 */
+  grantedScopes?: string[];
+  /** Phase 15: 最近一次响应的 Agent 蓝图 id，供 agents.list isMain 使用（仅 Event Bus 分支设置） */
+  lastRespondingBlueprintId?: string;
 };
 
 const sessions = new Map<string, Session>();
@@ -59,12 +101,13 @@ const sessions = new Map<string, Session>();
 function getOrCreateSession(sessionId: string, sessionType?: string): Session {
   let s = sessions.get(sessionId);
   if (!s) {
-    s = { messages: [], blackboard: {}, sessionState: "Idle", ...(sessionType ? { sessionType } : {}) };
+    s = { messages: [], blackboard: {}, sessionState: "Idle", grantedScopes: [], ...(sessionType ? { sessionType } : {}) };
     sessions.set(sessionId, s);
   } else {
     if (sessionType !== undefined) s.sessionType = sessionType;
     if (s.blackboard == null) s.blackboard = {};
     if (s.sessionState == null) s.sessionState = "Idle";
+    if (s.grantedScopes == null) s.grantedScopes = [];
   }
   return s;
 }
@@ -72,6 +115,91 @@ function getOrCreateSession(sessionId: string, sessionType?: string): Session {
 export function createGatewayServer(config: RzeclawConfig, port: number): void {
   const host = config.gateway?.host ?? "127.0.0.1";
   const wss = new WebSocketServer({ host, port });
+
+  /** Phase 14A: Event Bus 启用时，correlationId → { ws, id }，用于 chat.stream 回传 */
+  const pendingStreamByCorrelationId = new Map<string, { ws: WebSocket; id: string }>();
+
+  if (config.eventBus?.enabled === true) {
+    subscribe(TOPIC_PIPELINE_STAGE_DONE, (payload: unknown) => {
+      if (isPipelineStageDonePayload(payload)) {
+        void handlePipelineStageDone(config, payload, (chunk) => {
+          publishStream({ correlationId: payload.correlationId, chunk });
+        });
+      }
+    });
+    subscribeToDelegateRequest(config);
+    subscribeToSwarmBroadcast(config);
+    const retentionMinutes = config.taskResults?.retentionMinutes ?? 24 * 60;
+    const workspace = path.resolve(config.workspace);
+
+    const runExecutionHandler = async (event: ChatRequestEvent) => {
+      createTask(event.correlationId, event.sessionId, retentionMinutes);
+      setTaskRunning(event.correlationId);
+      try {
+        const response = await handleChatRequest(config, event, (chunk) => {
+          publishStream({ correlationId: event.correlationId, chunk });
+        });
+        if (response.pipelineNextAgentId) {
+          const stageEvent: PipelineStageDoneEvent = {
+            pipelineId: event.correlationId,
+            correlationId: event.correlationId,
+            sourceAgentId: response.sourceAgentId,
+            output: response.content ?? "",
+            nextAgentId: response.pipelineNextAgentId,
+            blackboardSnapshot: response.blackboard,
+            ts: new Date().toISOString(),
+          };
+          publish(TOPIC_PIPELINE_STAGE_DONE, stageEvent);
+        } else {
+          setTaskCompleted(event.correlationId, response, { workspace, retentionMinutes });
+          publish(TOPIC_CHAT_RESPONSE, response);
+        }
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        setTaskFailed(event.correlationId, errMsg, { workspace, retentionMinutes });
+        publish(TOPIC_CHAT_RESPONSE, {
+          correlationId: event.correlationId,
+          error: errMsg,
+        });
+      }
+    };
+
+    if (config.exploration?.enabled) {
+      // WO-1605/1634: 探索层订阅 chat.request，发布 task.plan_ready 或 chat.response（fallback）；执行层订阅 plan_ready
+      subscribe<ChatRequestEvent>(TOPIC_CHAT_REQUEST, async (event) => {
+        createTask(event.correlationId, event.sessionId, retentionMinutes);
+        setTaskRunning(event.correlationId);
+        try {
+          const result = await runExplorationLayerForEventBus(config, event);
+          if (result.action === "response") {
+            setTaskCompleted(event.correlationId, result.response, { workspace, retentionMinutes });
+            publish(TOPIC_CHAT_RESPONSE, result.response);
+          } else {
+            publish(TOPIC_PLAN_READY, result.event);
+          }
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          setTaskFailed(event.correlationId, errMsg, { workspace, retentionMinutes });
+          publish(TOPIC_CHAT_RESPONSE, { correlationId: event.correlationId, error: errMsg });
+        }
+      });
+      subscribe<ChatRequestEvent>(TOPIC_PLAN_READY, (event) => {
+        void runExecutionHandler(event);
+      });
+    } else {
+      subscribe<ChatRequestEvent>(TOPIC_CHAT_REQUEST, (event) => {
+        void runExecutionHandler(event);
+      });
+    }
+    subscribe<{ correlationId: string; chunk: string }>(TOPIC_CHAT_STREAM, (ev) => {
+      const pending = pendingStreamByCorrelationId.get(ev.correlationId);
+      if (pending) {
+        try {
+          pending.ws.send(JSON.stringify({ id: pending.id, stream: "text", chunk: ev.chunk }));
+        } catch (_) {}
+      }
+    });
+  }
 
   let bonjourInstance: { publish: (opts: { name: string; type: string; port: number }) => unknown; destroy?: () => void } | null = null;
 
@@ -114,6 +242,74 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
           console.log("[rzeclaw] Diagnostic report:", filePath);
         })().catch((e) => console.error("[rzeclaw] Diagnostic report error:", e));
       }, intervalMs);
+    }
+    const hotReloadInterval = config.hotReload?.intervalSeconds ?? 0;
+    if (hotReloadInterval >= 10) {
+      const configPath = findConfigPath();
+      if (configPath) {
+        let lastMtime = 0;
+        setInterval(async () => {
+          try {
+            const st = await stat(configPath);
+            const m = st.mtimeMs;
+            if (lastMtime > 0 && m > lastMtime) {
+              const result = reloadConfig(config);
+              if (result.ok) {
+                console.log("[rzeclaw] config hot-reloaded (mtime change)");
+              }
+            }
+            lastMtime = m;
+          } catch (_) {}
+        }, hotReloadInterval * 1000);
+      }
+    }
+    const taskCleanupIntervalMs = 10 * 60 * 1000; // 10 min
+    setInterval(() => {
+      cleanupExpired(path.resolve(config.workspace)).catch(() => {});
+    }, taskCleanupIntervalMs);
+
+    // Phase 17 WO-1741: foldCron 定时折叠（不默认开启；仅当用户配置 foldCron 时执行）
+    const foldCron = config.memory?.rollingLedger?.foldCron;
+    if (
+      typeof foldCron === "string" &&
+      foldCron.trim() !== "" &&
+      config.memory?.rollingLedger?.enabled === true
+    ) {
+      const parts = foldCron.trim().split(/\s+/);
+      const cronMin = parts.length >= 1 ? parseInt(parts[0], 10) : 0;
+      const cronHour = parts.length >= 2 ? parseInt(parts[1], 10) : 0;
+      if (!Number.isNaN(cronMin) && !Number.isNaN(cronHour)) {
+        let lastFoldRunDate: string | null = null;
+        setInterval(() => {
+          const now = new Date();
+          if (now.getMinutes() !== cronMin || now.getHours() !== cronHour) return;
+          const yesterday = new Date(now);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayStr = yesterday.toISOString().slice(0, 10);
+          if (lastFoldRunDate === yesterdayStr) return;
+          lastFoldRunDate = yesterdayStr;
+          const workspace = path.resolve(config.workspace);
+          (async () => {
+            try {
+              const result = await runFoldForDate(workspace, yesterdayStr, config);
+              if (
+                result.success &&
+                config.memory?.rollingLedger?.includePendingInReport === true &&
+                result.foldedPendingTasks?.length
+              ) {
+                const today = now.toISOString().slice(0, 10);
+                await mergeRollingLedgerPendingIntoReport(workspace, today, result.foldedPendingTasks);
+              }
+              if (result.success) {
+                console.log("[rzeclaw] Rolling ledger fold completed for", yesterdayStr);
+              }
+            } catch (e) {
+              console.error("[rzeclaw] Rolling ledger fold error:", e);
+            }
+          })().catch(() => {});
+        }, 60 * 1000);
+        console.log("[rzeclaw] Rolling ledger foldCron scheduled:", foldCron);
+      }
     }
   });
 
@@ -210,6 +406,9 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
           const session = getOrCreateSession(sessionId);
           const workspace = path.resolve(config.workspace);
           if (session.sessionFlags?.privacy) {
+            if (config.security?.privacyIsolationRetentionDays === 0) {
+              await cleanupPrivacyIsolatedForSession(workspace, sessionId);
+            }
             send({ sessionId, saved: false, reason: "privacy" });
             return;
           }
@@ -219,7 +418,26 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
             sessionSummary: session.sessionSummary,
             sessionType: session.sessionType,
           });
-          send({ sessionId, saved: true });
+          let highRiskOpsSuggestedReview = false;
+          if (config.security?.postActionReview?.highRiskSuggestReviewOnSessionEnd) {
+            const entries = await readLastNEntriesBySession(workspace, sessionId, 100);
+            highRiskOpsSuggestedReview = entries.some((e) => e.risk_level === "high");
+          }
+          send({ sessionId, saved: true, ...(highRiskOpsSuggestedReview && { highRiskOpsSuggestedReview: true }) });
+          return;
+        }
+
+        if (method === "scope.grantSession") {
+          const scope = (params as { scope?: string }).scope;
+          const sessionId = ((params as { sessionId?: string }).sessionId as string) || "main";
+          if (!scope || typeof scope !== "string") {
+            sendError("Missing or invalid params.scope");
+            return;
+          }
+          const session = getOrCreateSession(sessionId);
+          if (!session.grantedScopes) session.grantedScopes = [];
+          if (!session.grantedScopes.includes(scope)) session.grantedScopes.push(scope);
+          send({ ok: true, scope, sessionId });
           return;
         }
 
@@ -255,6 +473,161 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
           return;
         }
 
+        if (method === "agents.list") {
+          const sessionId = (params.sessionId as string) || "main";
+          const session = sessions.get(sessionId);
+          const mainBlueprintId = session?.lastRespondingBlueprintId;
+          const all = listAllInstances(config);
+          let mainAssigned = false;
+          const agents = all.map((inst) => {
+            const blueprint = getAgentBlueprint(config, inst.blueprintId);
+            const isMain = !mainAssigned && !!mainBlueprintId && inst.blueprintId === mainBlueprintId;
+            if (isMain) mainAssigned = true;
+            return {
+              instanceId: inst.instanceId,
+              agentId: inst.instanceId,
+              blueprintId: inst.blueprintId,
+              name: blueprint?.name ?? inst.blueprintId,
+              state: inst.state,
+              detail: undefined,
+              sessionId: inst.sessionId,
+              lastActiveAt: inst.lastActiveAt,
+              createdAt: inst.createdAt,
+              isMain,
+            };
+          });
+          send({ agents });
+          return;
+        }
+
+        if (method === "agents.blueprints") {
+          const blueprints = (config.agents?.blueprints ?? []).map((b) => ({
+            id: b.id,
+            name: b.name,
+          }));
+          send({ blueprints });
+          return;
+        }
+
+        if (method === "office.status") {
+          const inProgress = chatInProgressByWs.get(ws) === true;
+          const state = inProgress ? "executing" : "idle";
+          const sessionId = (params.sessionId as string) || "main";
+          const session = sessions.get(sessionId);
+          const detail = session?.sessionGoal ? session.sessionGoal.slice(0, 80) : undefined;
+          send({ state, detail });
+          return;
+        }
+
+        if (method === "memory.yesterdaySummary") {
+          const workspace = path.resolve((params.workspace as string) || config.workspace);
+          try {
+            const { date, memo } = await readYesterdaySummary(workspace);
+            send({ success: true, date, memo });
+          } catch {
+            send({ success: false, memo: "" });
+          }
+          return;
+        }
+
+        if (method === "memory.fold") {
+          if (!config.memory?.rollingLedger?.enabled) {
+            sendError("memory.rollingLedger is not enabled");
+            return;
+          }
+          const workspace = path.resolve((params.workspace as string) || config.workspace);
+          const dateParam = (params as { date?: string }).date;
+          const date =
+            typeof dateParam === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
+              ? dateParam
+              : (() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() - 1);
+                  return d.toISOString().slice(0, 10);
+                })();
+          try {
+            const result = await runFoldForDate(workspace, date, config);
+            if (
+              result.success &&
+              config.memory?.rollingLedger?.includePendingInReport === true &&
+              result.foldedPendingTasks?.length
+            ) {
+              const today = new Date().toISOString().slice(0, 10);
+              await mergeRollingLedgerPendingIntoReport(workspace, today, result.foldedPendingTasks);
+            }
+            send({
+              success: result.success,
+              date: result.date,
+              evicted: !!result.evicted,
+              error: result.error,
+            });
+          } catch (e) {
+            send({
+              success: false,
+              date: "",
+              error: e instanceof Error ? e.message : String(e),
+            });
+          }
+          return;
+        }
+
+        if (method === "task.getResult") {
+          const correlationId = (params as { correlationId?: string }).correlationId;
+          if (!correlationId || typeof correlationId !== "string") {
+            sendError("Missing params.correlationId");
+            return;
+          }
+          const workspace = path.resolve(config.workspace);
+          const result = await getResult(correlationId, { workspace });
+          if (result === null) {
+            send({ status: "not_found" });
+          } else if ("status" in result && result.status === "expired") {
+            send({ status: "expired" });
+          } else {
+            send({
+              status: result.status,
+              content: result.content,
+              error: result.error,
+              citedMemoryIds: result.citedMemoryIds,
+              completedAt: result.completedAt,
+            });
+          }
+          return;
+        }
+
+        if (method === "task.listBySession") {
+          const sessionId = (params.sessionId as string) || "main";
+          const limit = typeof params.limit === "number" && params.limit > 0 ? Math.min(params.limit, 100) : 20;
+          const list = listBySession(sessionId, limit);
+          send({ tasks: list });
+          return;
+        }
+
+        if (method === "config.reload") {
+          if (config.hotReload?.allowExplicitReload === false) {
+            sendError("Explicit config reload is disabled (hotReload.allowExplicitReload: false)");
+            return;
+          }
+          const result = reloadConfig(config);
+          if (result.ok) {
+            console.log("[rzeclaw] config hot-reloaded");
+            try {
+              const auditDir = path.join(path.resolve(config.workspace), ".rzeclaw");
+              await access(auditDir).catch(() => import("node:fs/promises").then(({ mkdir }) => mkdir(auditDir, { recursive: true })));
+              const { appendFile } = await import("node:fs/promises");
+              await appendFile(
+                path.join(auditDir, "hot_reload_audit.log"),
+                JSON.stringify({ event: "hot_reload", ts: new Date().toISOString(), reason: "config.reload" }) + "\n",
+                "utf-8"
+              );
+            } catch (_) {}
+            send({ ok: true });
+          } else {
+            send({ ok: false, message: result.message });
+          }
+          return;
+        }
+
         if (method === "chat") {
           const message = params.message as string;
           const sessionId = (params.sessionId as string) || "main";
@@ -284,6 +657,68 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
             });
             if (newSummary) session.sessionSummary = newSummary;
           }
+
+          chatInProgressByWs.set(ws, true);
+          if (config.eventBus?.enabled === true) {
+            const correlationId = createCorrelationId();
+            pendingStreamByCorrelationId.set(correlationId, { ws, id });
+            const request: ChatRequestEvent = {
+              correlationId,
+              source: "gateway_ws",
+              message,
+              sessionId,
+              sessionType: session.sessionType,
+              workspace,
+              teamId: typeof params.teamId === "string" ? params.teamId : undefined,
+              privacy: session.sessionFlags?.privacy,
+              sessionSnapshot: {
+                messages: session.messages,
+                sessionGoal: session.sessionGoal,
+                sessionSummary: session.sessionSummary,
+                sessionType: session.sessionType,
+                blackboard: session.blackboard,
+              },
+              sessionGrantedScopes: session.grantedScopes?.length ? session.grantedScopes : undefined,
+              ts: new Date().toISOString(),
+            };
+            const timeoutMs = config.eventBus.responseTimeoutMs ?? 300_000;
+            requestResponse(request, { timeoutMs })
+              .then((response) => {
+                if (response.messages) session.messages = response.messages;
+                if (response.sessionGoal !== undefined) session.sessionGoal = response.sessionGoal;
+                if (response.sessionSummary !== undefined) session.sessionSummary = response.sessionSummary;
+                if (response.blackboard) session.blackboard = response.blackboard;
+                if (!session.sessionFlags?.privacy) {
+                  writeSnapshot(workspace, sessionId, {
+                    messages: session.messages,
+                    sessionGoal: session.sessionGoal,
+                    sessionSummary: session.sessionSummary,
+                    sessionType: session.sessionType,
+                  }).catch((e) => console.error("[rzeclaw] snapshot write error:", e));
+                }
+                if (response.error) {
+                  sendError(response.error);
+                } else {
+                  if (response.sourceAgentId) session.lastRespondingBlueprintId = response.sourceAgentId;
+                  send({
+                    content: response.content,
+                    ...(response.citedMemoryIds?.length ? { citedMemoryIds: response.citedMemoryIds } : {}),
+                    ...(response.evolutionSuggestion ? { evolutionSuggestion: true } : {}),
+                    ...(response.generatedFlowId ? { generatedFlowId: response.generatedFlowId, suggestedRoute: response.suggestedRoute } : {}),
+                  });
+                }
+              })
+              .catch((err) => {
+                sendError(err instanceof Error ? err.message : String(err));
+              })
+              .finally(() => {
+                pendingStreamByCorrelationId.delete(correlationId);
+                chatInProgressByWs.set(ws, false);
+              });
+            return;
+          }
+
+          try {
           if (config.flows?.enabled === true && config.flows.routes?.length && config.flows.libraryPath) {
             const flowLibrary = await getFlowLibrary(workspace, config.flows.libraryPath);
             const successRates = await getFlowSuccessRates(workspace, config.flows.libraryPath);
@@ -390,6 +825,8 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
                   flowLibrary,
                   blackboard,
                   userMessage: message,
+                  sessionId,
+                  sessionGrantedScopes: session.grantedScopes?.length ? session.grantedScopes : undefined,
                   onLLMNode: async (opts) => {
                     try {
                       let contextSummary = opts.contextSummary ?? "";
@@ -488,6 +925,9 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
                     summary,
                     factCount,
                   });
+                  if (config.memory?.rollingLedger?.enabled && summary) {
+                    void appendToTodayBuffer({ workspaceDir: workspace, sessionId, content: summary, source: "flushToL1" });
+                  }
                   const workspaceId = config.memory.workspaceId ?? workspace;
                   await promoteL1ToL2(store, {
                     workspace_id: workspaceId,
@@ -500,11 +940,30 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
                   ) {
                     await archiveCold(workspace, config.memory.workspaceId, config.memory.coldAfterDays);
                   }
+                  if (config.security?.privacyIsolationRetentionDays != null && config.security.privacyIsolationRetentionDays > 0) {
+                    await cleanupPrivacyIsolated(workspace, config.security.privacyIsolationRetentionDays);
+                  }
                   await writePromptSuggestions({
                     config,
                     workspaceDir: workspace,
                     sessionId,
                     summary,
+                  });
+                } else if (
+                  config.memory?.enabled &&
+                  messages.length >= 2 &&
+                  session.sessionFlags?.privacy &&
+                  typeof config.security?.privacyIsolationRetentionDays === "number"
+                ) {
+                  const store = createPrivacyIsolatedStore(workspace, sessionId);
+                  await flushToL1({
+                    config,
+                    sessionId,
+                    messages,
+                    store,
+                    workspaceId: config.memory.workspaceId ?? workspace,
+                    taskHint: extractTaskHint(message),
+                    skipAuditLog: true,
                   });
                 }
                 session.sessionState = "Idle";
@@ -526,6 +985,10 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
             return;
           }
           const agentStart = Date.now();
+          const rollingContext =
+            config.memory?.rollingLedger?.enabled && !session.sessionFlags?.privacy
+              ? await getRollingContextForPrompt(workspace)
+              : undefined;
           const { content, messages, citedMemoryIds } = await runAgentLoop({
             config: { ...config, workspace },
             userMessage: message,
@@ -533,9 +996,11 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
             sessionId,
             sessionGoal: session.sessionGoal,
             sessionSummary: session.sessionSummary,
+            rollingContext,
             sessionType: session.sessionType,
             teamId: typeof params.teamId === "string" ? params.teamId : undefined,
             sessionFlags: session.sessionFlags,
+            sessionGrantedScopes: session.grantedScopes?.length ? session.grantedScopes : undefined,
             blackboard: session.blackboard,
             onText: (chunk) => {
               try {
@@ -578,6 +1043,9 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
               summary,
               factCount,
             });
+            if (config.memory?.rollingLedger?.enabled && summary) {
+              void appendToTodayBuffer({ workspaceDir: workspace, sessionId, content: summary, source: "flushToL1" });
+            }
             const workspaceId = config.memory.workspaceId ?? workspace;
             await promoteL1ToL2(store, {
               workspace_id: workspaceId,
@@ -590,11 +1058,30 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
             ) {
               await archiveCold(workspace, config.memory.workspaceId, config.memory.coldAfterDays);
             }
+            if (config.security?.privacyIsolationRetentionDays != null && config.security.privacyIsolationRetentionDays > 0) {
+              await cleanupPrivacyIsolated(workspace, config.security.privacyIsolationRetentionDays);
+            }
             await writePromptSuggestions({
               config,
               workspaceDir: workspace,
               sessionId,
               summary,
+            });
+          } else if (
+            config.memory?.enabled &&
+            messages.length >= 2 &&
+            session.sessionFlags?.privacy &&
+            typeof config.security?.privacyIsolationRetentionDays === "number"
+          ) {
+            const store = createPrivacyIsolatedStore(workspace, sessionId);
+            await flushToL1({
+              config,
+              sessionId,
+              messages,
+              store,
+              workspaceId: config.memory.workspaceId ?? workspace,
+              taskHint: extractTaskHint(message),
+              skipAuditLog: true,
             });
           }
           let evolutionSuggestionAgent = false;
@@ -628,6 +1115,9 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
             ...(evolutionSuggestionAgent ? { evolutionSuggestion: true } : {}),
           });
           return;
+          } finally {
+            chatInProgressByWs.set(ws, false);
+          }
         }
 
         if (method === "tools.call") {

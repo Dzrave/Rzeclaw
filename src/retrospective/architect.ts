@@ -7,10 +7,11 @@ import { getLLMClient } from "../llm/index.js";
 import { readTelemetry } from "./telemetry.js";
 import { writePending } from "./pending.js";
 import type { PendingPatch } from "./pending.js";
+import { reportExplorationExperience } from "./exploration-experience.js";
 
 const ARCHITECT_SYSTEM = `你是复盘架构师，只读遥测与元数据，产出结构化补丁建议，不直接修改系统。
 输出 JSON：{ "summary": "早报摘要", "patches": [ { "kind": "flow_edit"|"motivation_merge"|"report", "flowId?", "ops?", "motivation?", "summary": "本条摘要" } ] }
-flow_edit 的 ops 为 applyEditOps 格式；motivation_merge 的 motivation 为动机条目；report 仅摘要无操作。`;
+flow_edit 的 ops 为 applyEditOps 格式；motivation_merge 的 motivation 为动机条目；report 仅摘要无操作。探索经验修剪由系统自动产出，无需在此输出。`;
 
 export async function runRetrospective(
   config: RzeclawConfig,
@@ -54,6 +55,18 @@ export async function runRetrospective(
       } catch {
         patches = [];
       }
+    }
+    // WO-1655: 探索经验质量报告与修剪补丁（程序化产出，不由 LLM 生成）
+    try {
+      const explorationReport = await reportExplorationExperience(workspace);
+      if (explorationReport.patches.length > 0) {
+        patches = patches.concat(explorationReport.patches);
+      }
+      if (explorationReport.report) {
+        summary = summary + "\n\n" + explorationReport.report;
+      }
+    } catch {
+      // 探索经验模块失败不影响主复盘
     }
     await writePending(workspace, date, { date, summary, patches });
     return { success: true, date };

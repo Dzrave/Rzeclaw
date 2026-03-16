@@ -19,7 +19,14 @@
     "enabled": true,
     "storagePath": null,
     "workspaceId": "myapp",
-    "coldAfterDays": 30
+    "coldAfterDays": 30,
+    "rollingLedger": {
+      "enabled": false,
+      "windowDays": 5,
+      "timezone": null,
+      "foldCron": null,
+      "includePendingInReport": false
+    }
   },
   "evolution": {
     "bootstrapDocPath": "WORKSPACE_BEST_PRACTICES.md"
@@ -102,6 +109,10 @@
       "tools": ["ui_act", "keymouse"],
       "requireConfirm": false
     }
+  },
+  "eventBus": {
+    "enabled": false,
+    "responseTimeoutMs": 300000
   }
 }
 ```
@@ -130,6 +141,21 @@
 | `storagePath` | string | (未用) | 预留；当前存储路径由 workspace + `.rzeclaw/memory` 派生。 |
 | `workspaceId` | string | (由 workspace 派生) | 隔离键：记忆与审计按此区分；不同 workspaceId 互不可见。 |
 | `coldAfterDays` | number | 0 | 创建时间早于 N 天的 L1 条目移入冷存储（0=不归档）；会话结束可自动触发归档。 |
+| `rollingLedger` | object | 见下 | **Phase 17** 5 天滑动情景记忆（记忆折叠）：账本注入 system prompt、今日缓冲、折叠任务。 |
+
+**rollingLedger**（可选）：
+
+| 字段 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `enabled` | boolean | false | 是否启用滚动账本：请求时注入 5 天摘要、flushToL1 时写入今日缓冲。 |
+| `windowDays` | number | 5 | 账本保留天数（1～30）。 |
+| `timezone` | string | 本地 | 时区（如 `Asia/Shanghai`），用于「今日」边界。 |
+| `foldCron` | string | (无，**不默认开启**) | 可选。配置后 Gateway 将按该 cron（仅支持「分 时」两段，如 `0 0` 表示 00:00）每日自动执行折叠；未配置时**仅**通过 RPC `memory.fold` 触发。 |
+| `includePendingInReport` | boolean | false | **WO-1741** 是否将折叠产出的「昨日未完成任务」写入当日早报（`retrospective.report`）；用户显式设为 true 后，早报中可见 `rollingLedgerPendingTasks`。 |
+
+- 存储：账本 `workspace/.rzeclaw/memory/rolling_ledger.json`；今日缓冲 `workspace/.rzeclaw/memory/today_buffer_YYYY-MM-DD.jsonl`。
+- 隐私：`sessionFlags.privacy === true` 时不注入账本、不写今日缓冲。
+- **foldCron** 与 **includePendingInReport** 均为可选且默认关闭，需用户按需开启。
 
 ---
 
@@ -169,6 +195,33 @@
 | `enabled` | boolean | false | 是否启用轻量规划（复杂请求先出步骤再执行）。 |
 | `maxSteps` | number | 10 | 步骤列表最多保留条数。 |
 | `complexThresholdChars` | number | 80 | 消息长度超过此值即视为复杂请求；也可由关键词触发。 |
+
+---
+
+## exploration（Phase 16 探索层）
+
+**设计**：见 `docs/EXPLORATION_PLANNER_DESIGN.md`。在动机层之后、执行层之前插入可选探索层：未命中 flow 且满足触发条件时，先做先验扫描（FSM/黑板、可用技能），再由 Planner 生成多预案、Critic 择优，编译为执行指令后下发；可选探索经验复用以节约 Token。与 `planning` 的 `complexThresholdChars` 可复用（`exploration.trigger.complexThresholdChars` 未配置时沿用 `planning.complexThresholdChars`）。
+
+| 字段 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `enabled` | boolean | false | 是否启用探索层；关闭时请求直通执行层。 |
+| `timeoutMs` | number | 90000 | 探索层总超时（毫秒）；超时后降级为不探索，直接走 runAgentLoop。 |
+| `trigger.openIntents` | string[] | - | 开放性意图关键词，消息包含任一则可能进入探索层。 |
+| `trigger.complexThresholdChars` | number | 同 planning | 消息长度 ≥ 此值可触发探索；不配置时沿用 `planning.complexThresholdChars` 或 80。 |
+| `trigger.uncertaintyThreshold` | number | - | 可选：不确定性得分 ≥ 此值触发探索（0～1）。 |
+| `trigger.failureRateThreshold` | number | - | 某类任务近期失败率 ≥ 此值强制进入探索层（0～1）。 |
+| `planner.maxVariants` | number | 5 | 预案数量 3～5。 |
+| `planner.readOnlyRAGOnly` | boolean | true | Planner 仅只读 RAG，不调用写文件类工具。 |
+| `critic.weights` | object | - | 评分权重：success、cost、risk（Score = w1*E(success) - w2*Cost - w3*Risk）。 |
+| `snapshot.maxRelevantSkills` | number | 10 | 先验扫描时取前 K 个相关技能。 |
+| `experience.enabled` | boolean | false | 是否启用探索经验存储与复用。 |
+| `experience.collection` | string | `exploration_experience` | 内源 RAG 集合名。 |
+| `experience.reuseThreshold` | number | 建议 0.82～0.88 | 检索命中得分 ≥ 此值才复用历史预案。 |
+| `experience.requireSnapshotMatch` | boolean | false | 是否要求 snapshot_digest 兼容才复用。 |
+| `experience.storeOutcome` | boolean | false | 是否在执行完成后回写成功/失败到条目。 |
+| `experience.maxEntries` | number | - | 探索经验检索时最多使用的最近条数；不配置时默认 50。 |
+
+**可重载**：exploration 整块参与热重载（见 `RELOADABLE_CONFIG_KEYS`）。
 
 ---
 
@@ -213,6 +266,120 @@
 | `discovery.enabled` | boolean | false | 是否在局域网通过 mDNS 广播 _rzeclaw._tcp，供终端「扫描局域网」发现。 |
 
 终端连接时在首条请求的 params 中携带 `apiKey`（与上述环境变量值一致）；认证通过后该连接后续请求无需再带。终端设置页可点击「扫描局域网」发现已启用 discovery 的 Gateway。
+
+---
+
+## eventBus（Phase 14A）
+
+**设计**：见 `docs/EVENT_BUS_AS_HUB_DESIGN.md`。启用后 chat 请求经进程内逻辑总线发布/订阅：Gateway 仅发布 `chat.request`、订阅 `chat.response` 与 `chat.stream`，执行层（同进程内）订阅 request、执行 Router/Executor/runAgentLoop 后发布 response（及可选 stream）。会话与快照仍由 Gateway 维护；response 中回写 messages/sessionGoal/sessionSummary/blackboard 供 Gateway 合并并写快照。
+
+| 字段 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `enabled` | boolean | false | 为 true 时 chat 经 Event Bus 流转；Gateway 不直接调用执行逻辑。 |
+| `responseTimeoutMs` | number | 300000 | 等待 chat.response 超时（毫秒）；超时后向用户返回「请求超时」并清理映射。 |
+
+---
+
+## agents（Phase 14B 多 Agent 实体）
+
+**设计**：见 `docs/MULTI_AGENT_ENTITY_DESIGN.md`。引入 Agent 实体后，Router 可产出 `agentId`（及在其 `boundFlowIds` 内匹配的 `flowId`），调度层按 agentId 获取或创建实例并派发请求；实例使用蓝图的 systemPrompt、boundFlowIds、toolsFilter 与独立黑板。**术语**：「Agent 路径」指原有「不匹配 flow 则 runAgentLoop」的单一路径；「Agent 实体/实例」指本阶段的容器（蓝图 + 实例状态 + 局部黑板）。
+
+| 字段 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `blueprints` | array | [] | Agent 蓝图列表；每项见下表。 |
+| `defaultAgentId` | string | - | Router 未产出 agentId 时使用的默认蓝图 id；不配置则走全局 runAgentLoop。 |
+| `routes` | array | [] | 意图→Agent 映射；每项 `{ hint: string, agentId: string }`。hint 与 extractTaskHint(message) 匹配时选用该 Agent，再在其 boundFlowIds 内匹配 flow。 |
+
+**blueprints[]** 每项：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string | 唯一标识，如 code_reviewer、general。 |
+| `name` | string | 显示名，用于日志与 UI。 |
+| `systemPrompt` | string | 角色 system 片段，覆盖或补充 config.roles 按 sessionType 的片段。 |
+| `boundFlowIds` | string[] | 该 Agent 可用的 flowId 白名单；空则使用全局库且可匹配任意 route。 |
+| `localMemory` | object | 可选；`{ enabled, storagePath?, retrieveLimit?, includeGlobalRead? }` 局部记忆。`enabled` 为 true 时该 Agent 的 L1 仅写入局部 store（`.rzeclaw/memory/agent_<id>.jsonl`），检索仅查该 store；`includeGlobalRead` 为 true 时检索合并「局部 + 全局只读」。局部记忆不做 L2 提升与冷归档。 |
+| `llm` | object | 可选；该 Agent 使用的 LLM，覆盖全局。 |
+| `toolsFilter` | string[] | 可选；仅使用名称在此列表中的工具；不配置则用全局合并结果。 |
+
+**局部记忆与全局记忆（WO-1439）**：
+
+| 维度 | 全局记忆 | Agent 局部记忆（localMemory.enabled） |
+|------|----------|--------------------------------------|
+| 存储 | `config.memory.workspaceId` → `.rzeclaw/memory/<workspaceId>.jsonl` | `agent_<blueprintId>` → `.rzeclaw/memory/agent_<blueprintId>.jsonl` |
+| 写入 | 每轮会话 flushToL1 写入全局 store | 仅写入该 Agent 的 store，不写入全局 |
+| 检索 | runAgentLoop 从全局 store 检索 | 仅从该 Agent store 检索；若 `includeGlobalRead: true` 则合并「局部 + 全局」结果（局部优先、按 id 去重） |
+| L2 / 冷归档 | 有 promoteL1ToL2、archiveCold | 不做 L2 提升与冷归档，仅 L1 |
+
+未配置 `agents.blueprints[].localMemory` 或 `enabled: false` 时，该 Agent 仍使用全局记忆（与未配置多 Agent 时一致）。
+
+---
+
+## collaboration（Phase 14C 多 Agent 协作）
+
+**设计**：见 `docs/EVENT_BUS_COLLABORATION_DESIGN.md`。在 Event Bus 与多 Agent 实体就绪后，支持三种协作模式（仅当 `eventBus.enabled` 且 `agents` 配置时生效）：
+
+| 模式 | Topic | 说明 |
+|------|--------|------|
+| **流水线** | `pipeline.stage_done` | Agent 完成阶段后发布；下游认领 `nextAgentId` 继续执行；最后一环发布 `chat.response`。Agent 可通过黑板槽 `__nextAgentId` 指定下一环。 |
+| **委派** | `delegate.request` / `delegate.result` | 主控通过工具 `delegate_to_agent` 派发子任务给打工人；主控 FSM 置 waiting，收到 result 后合并黑板并继续。委派超时使用 `eventBus.responseTimeoutMs`（默认 5 分钟）或内置 2 分钟。 |
+| **蜂群** | `swarm.broadcast` / `swarm.contribution` | 通过工具 `broadcast_to_swarm` 广播任务；各 Agent 认领后执行并发布 contribution；发起方收集后聚合返回。 |
+
+与单次 chat 的区分：单次 `chat.request → chat.response` 表示「一条用户消息由一个执行单元处理」；协作表示一次请求内部可能经 pipeline/delegate/swarm 多事件、多 Agent 参与，最终仍对用户暴露为一次请求一次（或流式）回复。
+
+---
+
+## security（安全与隐私增强 WO-1501～1515）
+
+**设计**：见 `docs/SECURITY_PRIVACY_ENHANCEMENT_DESIGN.md`。在现有危险命令、process 保护、confirmPolicy 基础上，支持事后检查、权限域与会话/定时授权、隐私沙盒与端到端标记。
+
+| 字段 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `postActionReview.enableRiskClassification` | boolean | - | 为 true 时对每条 ops 写入 risk_level（classifyOpRisk 已实现，默认生效）。 |
+| `postActionReview.highRiskSuggestReviewOnSessionEnd` | boolean | - | 为 true 时，`session.saveSnapshot` 若检测到本会话近期存在高风险 ops 则返回 `highRiskOpsSuggestedReview: true`，供前端提示用户复查。 |
+| `permissionScopes` | object | - | 各 scope 默认策略：`allow` / `confirm` / `deny`。scope 与工具映射见 TOOL_SCOPE_MAP（如 write/edit→file_write，bash→bash，process kill→process_kill）。 |
+| `scheduledGrants` | array | - | 定时授权：`{ scope: string, window: "HH:mm-HH:mm" }`，如 `"09:00-18:00"` 表示该时段内该 scope 视为已授权、不弹确认。 |
+| `privacySessionToolPolicy` | string | allow_all | 隐私会话下工具策略：`allow_all` 不限制，`read_only` 仅允许 read/env_summary，`none` 禁止工具。 |
+| `opsLogPrivacySessionPolicy` | string | - | 隐私会话下 ops.log：`omit` 不写入，`redact` 脱敏后写入（未配置时仍写入且已有脱敏）。 |
+| `privacyIsolationRetentionDays` | number | - | **WO-1511** 隐私隔离存储保留天数：配置为 0 表示会话结束即删除隔离文件；>0 表示保留 N 天后由清理任务删除。未配置时隐私会话不写 L1；配置后隐私会话 L1 写入 `.rzeclaw/privacy_isolated/<sessionId>.jsonl`，不参与全局检索与导出，不写主 audit。 |
+
+**隐私隔离存储（WO-1511）**：当 `privacyIsolationRetentionDays` 为数字时，隐私会话的 L1 摘要/事实写入隔离路径 `.rzeclaw/privacy_isolated/<sessionId>.jsonl`，不参与全局 retrieve、不写主 audit、不提升 L2。会话结束（如 `session.saveSnapshot` 且为隐私会话）且保留期为 0 时删除该会话隔离文件；保留期 >0 时在每次冷归档或记忆写入后顺带清理超期文件。
+
+**与 confirmPolicy 的兼容（WO-1509）**：有效策略顺序为 ① `security.permissionScopes[scope]` ② 内置默认（如 file_write→confirm）③ `ideOperation.confirmPolicy.tools` 中列出的工具强制为 confirm。即先按 scope，再按 confirmPolicy.tools 覆盖。
+
+**会话级授权（WO-1507）**：`sessionGrants` 为运行时内存（不落盘）。客户端在用户选择「本次会话允许」后调用 `{ method: "scope.grantSession", params: { scope: "file_write", sessionId?: "main" } }`，服务端将该 scope 加入该会话的 grantedScopes，后续同 scope 工具调用不再弹确认。chat 请求会携带 `sessionGrantedScopes` 供执行层使用。
+
+**端到端隐私（WO-1514）**：`sessionFlags.privacy` 在 Gateway、执行层、记忆管道、快照、ops 全链路传递；隐私会话不写 L1、不持久化快照（或 omit/redact ops）。导出（audit-export、metrics-export 等）仅包含已存储数据，隐私会话内容已按策略不写或脱敏，故导出不含隐私原始内容（WO-1513）。
+
+---
+
+## hotReload（配置热重载 WO-1520～1527）
+
+**设计**：见 `docs/CONFIG_HOT_RELOAD_DESIGN.md`。在不重启进程的前提下，将可重载配置项从配置文件重新读入并浅替换到当前 config；`port`、`workspace`、`gateway.host` 不重载，需重启生效。
+
+| 字段 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `intervalSeconds` | number | 0 | 定时检查配置文件 mtime 的间隔（秒）；≥10 时启用轮询，变更则自动重载；0 表示不轮询。 |
+| `allowExplicitReload` | boolean | true | 为 false 时禁止通过 Gateway 方法 `config.reload` 触发重载。 |
+
+**可重载项**：model、apiKeyEnv、llm、memory、contextWindowRounds、reflectionToolCallInterval、summaryEveryRounds、evolution、planning、exploration、skills、mcp、heartbeat、gateway（仅 auth/discovery，host 保留）、roles、swarm、knowledge、diagnostic、flows、vectorEmbedding、localModel、retrospective、ideOperation、security、eventBus、agents、hotReload。
+
+**不可重载**：port、workspace、gateway.host。
+
+**用法**：已认证客户端发送 `{ method: "config.reload" }`，返回 `{ ok: true }` 或 `{ ok: false, message: "..." }`。成功时写入 `workspace/.rzeclaw/hot_reload_audit.log`。
+
+---
+
+## taskExecution / taskResults（任务解耦 WO-1540～1550）
+
+**设计**：见 `docs/TASK_GATEWAY_DECOUPLING_DESIGN.md`。执行层在收到 chat.request 后创建任务记录（pending → running）；完成或失败时写入结果存储并发布 chat.response；断连后客户端可通过任务查询拉取结果。
+
+| 字段 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `taskExecution.mode` | string | in_process | 保留；in_process 与 Gateway 同进程，worker 预留独立 Worker。 |
+| `taskResults.retentionMinutes` | number | 1440 | 任务结果保留时长（分钟），过期后可被定时清理删除。 |
+
+**查询**：已认证客户端可发送 `{ method: "task.getResult", params: { correlationId: "..." } }`，返回 `{ status, content?, error?, citedMemoryIds?, completedAt? }` 或 `status: "not_found"` / `"expired"`。`{ method: "task.listBySession", params: { sessionId?, limit? } }` 返回该会话最近 N 条任务的 correlationId、status、completedAt。结果同时写入内存与 `workspace/.rzeclaw/task_results/<correlationId>.json`；每 10 分钟清理过期记录。
 
 ---
 

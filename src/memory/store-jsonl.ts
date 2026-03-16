@@ -26,6 +26,17 @@ export function getColdFilePath(workspaceDir: string, workspaceId?: string): str
   return workspaceId ? path.join(dir, `${workspaceId}${COLD_SUFFIX}`) : path.join(dir, "memory_cold.jsonl");
 }
 
+/** WO-1511: 隐私隔离存储目录；不参与全局 retrieve，仅本会话写入，会话结束或 N 天后清理 */
+export function getPrivacyIsolatedDir(workspaceDir: string): string {
+  return path.join(workspaceDir, ".rzeclaw", "privacy_isolated");
+}
+
+/** WO-1511: 某会话的隐私隔离存储文件路径 */
+export function getPrivacyIsolatedFilePath(workspaceDir: string, sessionId: string): string {
+  const safeId = sessionId.replace(/[^a-zA-Z0-9_-]/g, "_") || "main";
+  return path.join(getPrivacyIsolatedDir(workspaceDir), `${safeId}.jsonl`);
+}
+
 function parseLine(line: string): MemoryEntry | null {
   const t = line.trim();
   if (!t) return null;
@@ -140,4 +151,9 @@ export function createStore(workspaceDir: string, workspaceId?: string): IMemory
 /** WO-407: 冷存储 Store，默认检索不包含冷数据，需显式传入 coldStore + includeCold */
 export function createColdStore(workspaceDir: string, workspaceId?: string): IMemoryStore {
   return new JsonlMemoryStore(getColdFilePath(workspaceDir, workspaceId));
+}
+
+/** WO-1511: 隐私隔离 Store；写入 .rzeclaw/privacy_isolated/<sessionId>.jsonl，不参与全局检索与导出 */
+export function createPrivacyIsolatedStore(workspaceDir: string, sessionId: string): IMemoryStore {
+  return new JsonlMemoryStore(getPrivacyIsolatedFilePath(workspaceDir, sessionId));
 }

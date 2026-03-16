@@ -55,31 +55,46 @@ export async function runAgentLoop(params) {
     setMetricsDir(observabilityDir);
     const llmClient = getLLMClient(params.config);
     const workspace = path.resolve(params.config.workspace);
-    let mergedTools = await getMergedTools(params.config, workspace);
-    if (params.sessionFlags?.privacy) {
-        const privacyAllowlist = new Set(["read", "env_summary"]);
-        mergedTools = mergedTools.filter((t) => privacyAllowlist.has(t.name));
+    let mergedTools;
+    if (params.toolsOverride?.length) {
+        mergedTools = params.toolsOverride;
     }
-    if (params.blackboard) {
-        mergedTools = [
-            ...mergedTools,
-            {
-                name: "write_slot",
-                description: "Write a value to the session blackboard (slot). Use to store key-value data for this session.",
-                inputSchema: {
-                    type: "object",
-                    properties: { key: { type: "string", description: "Slot name" }, value: { type: "string", description: "Slot value" } },
-                    required: ["key", "value"],
+    else {
+        mergedTools = await getMergedTools(params.config, workspace);
+        if (params.toolsFilter?.length) {
+            const set = new Set(params.toolsFilter);
+            mergedTools = mergedTools.filter((t) => set.has(t.name));
+        }
+        if (params.sessionFlags?.privacy) {
+            const policy = params.config.security?.privacySessionToolPolicy ?? "allow_all";
+            if (policy === "none")
+                mergedTools = [];
+            else if (policy === "read_only") {
+                const privacyAllowlist = new Set(["read", "env_summary"]);
+                mergedTools = mergedTools.filter((t) => privacyAllowlist.has(t.name));
+            }
+        }
+        if (params.blackboard) {
+            mergedTools = [
+                ...mergedTools,
+                {
+                    name: "write_slot",
+                    description: "Write a value to the session blackboard (slot). Use to store key-value data for this session.",
+                    inputSchema: {
+                        type: "object",
+                        properties: { key: { type: "string", description: "Slot name" }, value: { type: "string", description: "Slot value" } },
+                        required: ["key", "value"],
+                    },
+                    handler: async (args) => {
+                        const k = String(args.key ?? "");
+                        const v = String(args.value ?? "");
+                        if (k)
+                            params.blackboard[k] = v;
+                        return { ok: true, content: "OK" };
+                    },
                 },
-                handler: async (args) => {
-                    const k = String(args.key ?? "");
-                    const v = String(args.value ?? "");
-                    if (k)
-                        params.blackboard[k] = v;
-                    return { ok: true, content: "OK" };
-                },
-            },
-        ];
+            ];
+        }
     }
     const tools = toLLMTools(mergedTools);
     let systemPrompt = buildSystemPrompt(mergedTools);
@@ -94,6 +109,9 @@ export async function runAgentLoop(params) {
     if (sessionGoal) {
         systemPrompt += "\n\n[Current session goal]\n" + sessionGoal;
     }
+    if (params.rollingContext) {
+        systemPrompt += "\n\n[Rolling context]\n" + params.rollingContext;
+    }
     if (params.sessionSummary) {
         systemPrompt += "\n\n[Previous context summary]\n" + params.sessionSummary;
     }
@@ -101,7 +119,7 @@ export async function runAgentLoop(params) {
         const lines = Object.entries(params.blackboard).map(([k, v]) => `${k}: ${v}`);
         systemPrompt += "\n\n[Session slots (blackboard)]\n" + lines.join("\n");
     }
-    const roleFragment = getRoleFragment(params.config, params.sessionType);
+    const roleFragment = params.roleFragmentOverride ?? getRoleFragment(params.config, params.sessionType);
     if (roleFragment) {
         systemPrompt += "\n\n[Role]\n" + roleFragment;
     }
@@ -135,17 +153,60 @@ export async function runAgentLoop(params) {
     }
     let citedMemoryIds = [];
     if (params.config.memory?.enabled && !params.sessionFlags?.privacy) {
-        const store = createStore(path.resolve(params.config.workspace), params.config.memory.workspaceId);
         const taskHint = extractTaskHint(params.userMessage);
-        const isKnowledge = params.sessionType === "knowledge";
-        const retrieveLimit = isKnowledge
-            ? (params.config.knowledge?.retrieveLimit ?? 10)
-            : 5;
-        const entries = await retrieve(store, params.userMessage, {
-            workspace_id: params.config.memory.workspaceId ?? path.resolve(params.config.workspace),
-            limit: retrieveLimit,
-            task_hint: taskHint || undefined,
-        });
+        let entries;
+        if (params.localMemoryScope) {
+            const agentStore = createStore(path.resolve(params.config.workspace), params.localMemoryScope.workspaceId);
+            if (params.localMemoryScope.includeGlobal && params.config.memory.workspaceId != null) {
+                const globalStore = createStore(path.resolve(params.config.workspace), params.config.memory.workspaceId);
+                const [fromAgent, fromGlobal] = await Promise.all([
+                    retrieve(agentStore, params.userMessage, {
+                        workspace_id: params.localMemoryScope.workspaceId,
+                        limit: params.localMemoryScope.retrieveLimit,
+                        task_hint: taskHint || undefined,
+                    }),
+                    retrieve(globalStore, params.userMessage, {
+                        workspace_id: params.config.memory.workspaceId ?? path.resolve(params.config.workspace),
+                        limit: params.localMemoryScope.retrieveLimit,
+                        task_hint: taskHint || undefined,
+                    }),
+                ]);
+                const seen = new Set();
+                entries = [];
+                for (const e of fromAgent) {
+                    if (!seen.has(e.id)) {
+                        seen.add(e.id);
+                        entries.push(e);
+                    }
+                }
+                for (const e of fromGlobal) {
+                    if (!seen.has(e.id)) {
+                        seen.add(e.id);
+                        entries.push(e);
+                    }
+                }
+                entries = entries.slice(0, params.localMemoryScope.retrieveLimit);
+            }
+            else {
+                entries = await retrieve(agentStore, params.userMessage, {
+                    workspace_id: params.localMemoryScope.workspaceId,
+                    limit: params.localMemoryScope.retrieveLimit,
+                    task_hint: taskHint || undefined,
+                });
+            }
+        }
+        else {
+            const store = createStore(path.resolve(params.config.workspace), params.config.memory.workspaceId);
+            const isKnowledge = params.sessionType === "knowledge";
+            const retrieveLimit = isKnowledge
+                ? (params.config.knowledge?.retrieveLimit ?? 10)
+                : 5;
+            entries = await retrieve(store, params.userMessage, {
+                workspace_id: params.config.memory.workspaceId ?? path.resolve(params.config.workspace),
+                limit: retrieveLimit,
+                task_hint: taskHint || undefined,
+            });
+        }
         citedMemoryIds = entries.map((e) => e.id);
         const blocks = formatAsCitedBlocks(entries);
         if (blocks) {
@@ -190,6 +251,9 @@ export async function runAgentLoop(params) {
             apiMessages.push({ role: "assistant", content: response.content });
             const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
             const toolResults = [];
+            const opLogOpts = params.sessionFlags?.privacy && params.config.security?.opsLogPrivacySessionPolicy === "omit"
+                ? { skipWrite: true }
+                : undefined;
             for (const block of toolUseBlocks) {
                 const tool = mergedTools.find((t) => t.name === block.name);
                 if (!tool) {
@@ -219,7 +283,10 @@ export async function runAgentLoop(params) {
                                 result_summary: "blocked: dangerous command",
                                 ts: new Date().toISOString(),
                                 risk_level: "high",
-                            });
+                                ...(params.agentId != null && { agentId: params.agentId }),
+                                ...(params.blueprintId != null && { blueprintId: params.blueprintId }),
+                                ...(params.sessionId ? { sessionId: params.sessionId } : {}),
+                            }, opLogOpts);
                             continue;
                         }
                         if (dangerous.mode === "dryRunOnly" && block.input.dryRun !== true) {
@@ -234,7 +301,10 @@ export async function runAgentLoop(params) {
                                 result_summary: "blocked: dangerous command (dryRun only)",
                                 ts: new Date().toISOString(),
                                 risk_level: "high",
-                            });
+                                ...(params.agentId != null && { agentId: params.agentId }),
+                                ...(params.blueprintId != null && { blueprintId: params.blueprintId }),
+                                ...(params.sessionId ? { sessionId: params.sessionId } : {}),
+                            }, opLogOpts);
                             continue;
                         }
                         if (dangerous.mode === "confirm")
@@ -258,7 +328,10 @@ export async function runAgentLoop(params) {
                             result_summary: "blocked: protected pid",
                             ts: new Date().toISOString(),
                             risk_level: "high",
-                        });
+                            ...(params.agentId != null && { agentId: params.agentId }),
+                            ...(params.blueprintId != null && { blueprintId: params.blueprintId }),
+                            ...(params.sessionId ? { sessionId: params.sessionId } : {}),
+                        }, opLogOpts);
                         continue;
                     }
                     if (params.config.security?.processKillRequireConfirm === true) {
@@ -279,7 +352,10 @@ export async function runAgentLoop(params) {
                         result_summary: "denied: permission scope",
                         ts: new Date().toISOString(),
                         risk_level: "high",
-                    });
+                        ...(params.agentId != null && { agentId: params.agentId }),
+                        ...(params.blueprintId != null && { blueprintId: params.blueprintId }),
+                        ...(params.sessionId ? { sessionId: params.sessionId } : {}),
+                    }, opLogOpts);
                     continue;
                 }
                 if (!requiresConfirmation &&
@@ -306,7 +382,10 @@ export async function runAgentLoop(params) {
                         result_summary: "skipped: requires user confirmation",
                         ts: new Date().toISOString(),
                         risk_level: classifyOpRisk(block.name, block.input, "skipped: requires user confirmation"),
-                    });
+                        ...(params.agentId != null && { agentId: params.agentId }),
+                        ...(params.blueprintId != null && { blueprintId: params.blueprintId }),
+                        ...(params.sessionId ? { sessionId: params.sessionId } : {}),
+                    }, opLogOpts);
                     continue;
                 }
                 const timeoutMs = params.config.ideOperation?.timeoutMs ?? tool.timeoutMs ?? 60000;
@@ -339,7 +418,10 @@ export async function runAgentLoop(params) {
                     ...(result.undoHint ? { undo_hint: result.undoHint } : {}),
                     ts: new Date().toISOString(),
                     risk_level: classifyOpRisk(block.name, block.input, resultSummary),
-                });
+                    ...(params.agentId != null && { agentId: params.agentId }),
+                    ...(params.blueprintId != null && { blueprintId: params.blueprintId }),
+                    ...(params.sessionId ? { sessionId: params.sessionId } : {}),
+                }, opLogOpts);
             }
             apiMessages.push({
                 role: "user",

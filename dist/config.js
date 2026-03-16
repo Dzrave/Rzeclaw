@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { homedir, platform } from "node:os";
 const DEFAULT_WORKSPACE = join(homedir(), ".rzeclaw", "workspace");
 const DEFAULT_PORT = 18789;
-function findConfigPath() {
+/** WO-1526: 查找配置文件路径，供热重载 mtime 轮询使用 */
+export function findConfigPath() {
     const cwd = process.cwd();
     const home = homedir();
     const dir = platform() === "win32" ? process.env.USERPROFILE || home : home;
@@ -42,11 +43,23 @@ export function loadConfig(overridePath) {
             base.apiKeyEnv = data.apiKeyEnv;
         if (data.memory != null && typeof data.memory === "object") {
             const m = data.memory;
+            const rl = m.rollingLedger != null && typeof m.rollingLedger === "object" ? m.rollingLedger : undefined;
             base.memory = {
                 enabled: m.enabled === true,
                 storagePath: typeof m.storagePath === "string" ? m.storagePath : undefined,
                 workspaceId: typeof m.workspaceId === "string" ? m.workspaceId : undefined,
                 coldAfterDays: typeof m.coldAfterDays === "number" && m.coldAfterDays >= 0 ? m.coldAfterDays : undefined,
+                rollingLedger: rl != null
+                    ? {
+                        enabled: rl.enabled === true,
+                        windowDays: typeof rl.windowDays === "number" && rl.windowDays >= 1 && rl.windowDays <= 30
+                            ? rl.windowDays
+                            : undefined,
+                        timezone: typeof rl.timezone === "string" ? rl.timezone : undefined,
+                        foldCron: typeof rl.foldCron === "string" ? rl.foldCron : undefined,
+                        includePendingInReport: rl.includePendingInReport === true,
+                    }
+                    : undefined,
             };
         }
         if (typeof data.contextWindowRounds === "number" && data.contextWindowRounds > 0) {
@@ -340,6 +353,68 @@ export function loadConfig(overridePath) {
                     typeof s.scope === "string" &&
                     typeof s.window === "string");
             }
+            if (sec.postActionReview != null && typeof sec.postActionReview === "object") {
+                const par = sec.postActionReview;
+                base.security.postActionReview = {
+                    enableRiskClassification: par.enableRiskClassification === true,
+                    highRiskSuggestReviewOnSessionEnd: par.highRiskSuggestReviewOnSessionEnd === true,
+                };
+            }
+            if (sec.privacySessionToolPolicy === "read_only" || sec.privacySessionToolPolicy === "none") {
+                base.security.privacySessionToolPolicy = sec.privacySessionToolPolicy;
+            }
+            if (sec.opsLogPrivacySessionPolicy === "omit" || sec.opsLogPrivacySessionPolicy === "redact") {
+                base.security.opsLogPrivacySessionPolicy = sec.opsLogPrivacySessionPolicy;
+            }
+            if (typeof sec.privacyIsolationRetentionDays === "number" && sec.privacyIsolationRetentionDays >= 0) {
+                base.security.privacyIsolationRetentionDays = sec.privacyIsolationRetentionDays;
+            }
+        }
+        if (data.eventBus != null && typeof data.eventBus === "object") {
+            const eb = data.eventBus;
+            base.eventBus = {
+                enabled: eb.enabled === true,
+                responseTimeoutMs: typeof eb.responseTimeoutMs === "number" && eb.responseTimeoutMs > 0
+                    ? eb.responseTimeoutMs
+                    : undefined,
+            };
+        }
+        if (data.agents != null && typeof data.agents === "object") {
+            const ag = data.agents;
+            const blueprintsRaw = Array.isArray(ag.blueprints) ? ag.blueprints : [];
+            const blueprints = [];
+            for (const b of blueprintsRaw) {
+                if (b != null && typeof b === "object" && typeof b.id === "string") {
+                    const x = b;
+                    const lm = x.localMemory;
+                    blueprints.push({
+                        id: x.id,
+                        name: typeof x.name === "string" ? x.name : undefined,
+                        systemPrompt: typeof x.systemPrompt === "string" ? x.systemPrompt : undefined,
+                        boundFlowIds: Array.isArray(x.boundFlowIds) ? x.boundFlowIds.filter((id) => typeof id === "string") : undefined,
+                        localMemory: lm != null && typeof lm === "object" && lm.enabled === true
+                            ? {
+                                enabled: true,
+                                storagePath: typeof lm.storagePath === "string" ? lm.storagePath : undefined,
+                                retrieveLimit: typeof lm.retrieveLimit === "number" ? lm.retrieveLimit : undefined,
+                                includeGlobalRead: lm.includeGlobalRead === true,
+                            }
+                            : undefined,
+                        llm: undefined,
+                        toolsFilter: Array.isArray(x.toolsFilter) ? x.toolsFilter.filter((t) => typeof t === "string") : undefined,
+                    });
+                }
+            }
+            const routesRaw = Array.isArray(ag.routes) ? ag.routes : [];
+            const routes = routesRaw.filter((r) => r != null &&
+                typeof r === "object" &&
+                typeof r.hint === "string" &&
+                typeof r.agentId === "string");
+            base.agents = {
+                blueprints: blueprints.length > 0 ? blueprints : undefined,
+                defaultAgentId: typeof ag.defaultAgentId === "string" ? ag.defaultAgentId : undefined,
+                routes: routes.length > 0 ? routes : undefined,
+            };
         }
         if (data.llm != null && typeof data.llm === "object") {
             const l = data.llm;
@@ -361,8 +436,156 @@ export function loadConfig(overridePath) {
                 };
             }
         }
+        if (data.hotReload != null && typeof data.hotReload === "object") {
+            const hr = data.hotReload;
+            base.hotReload = {
+                intervalSeconds: typeof hr.intervalSeconds === "number" && hr.intervalSeconds >= 0 ? hr.intervalSeconds : undefined,
+                allowExplicitReload: hr.allowExplicitReload === false ? false : true,
+            };
+        }
+        if (data.taskExecution != null && typeof data.taskExecution === "object") {
+            const te = data.taskExecution;
+            base.taskExecution = {
+                mode: te.mode === "worker" ? "worker" : "in_process",
+            };
+        }
+        if (data.taskResults != null && typeof data.taskResults === "object") {
+            const tr = data.taskResults;
+            base.taskResults = {
+                retentionMinutes: typeof tr.retentionMinutes === "number" && tr.retentionMinutes > 0 ? tr.retentionMinutes : undefined,
+            };
+        }
+        if (data.exploration != null && typeof data.exploration === "object") {
+            const ex = data.exploration;
+            const trigger = ex.trigger != null && typeof ex.trigger === "object" ? ex.trigger : undefined;
+            const planner = ex.planner != null && typeof ex.planner === "object" ? ex.planner : undefined;
+            const critic = ex.critic != null && typeof ex.critic === "object" ? ex.critic : undefined;
+            const weights = critic?.weights != null && typeof critic.weights === "object" ? critic.weights : undefined;
+            const snapshot = ex.snapshot != null && typeof ex.snapshot === "object" ? ex.snapshot : undefined;
+            const experience = ex.experience != null && typeof ex.experience === "object" ? ex.experience : undefined;
+            base.exploration = {
+                enabled: ex.enabled === true,
+                timeoutMs: typeof ex.timeoutMs === "number" && ex.timeoutMs > 0 ? ex.timeoutMs : undefined,
+                trigger: trigger
+                    ? {
+                        openIntents: Array.isArray(trigger.openIntents)
+                            ? trigger.openIntents.filter((x) => typeof x === "string")
+                            : undefined,
+                        complexThresholdChars: typeof trigger.complexThresholdChars === "number" && trigger.complexThresholdChars >= 0
+                            ? trigger.complexThresholdChars
+                            : undefined,
+                        uncertaintyThreshold: typeof trigger.uncertaintyThreshold === "number" && trigger.uncertaintyThreshold >= 0 && trigger.uncertaintyThreshold <= 1
+                            ? trigger.uncertaintyThreshold
+                            : undefined,
+                        failureRateThreshold: typeof trigger.failureRateThreshold === "number" && trigger.failureRateThreshold >= 0 && trigger.failureRateThreshold <= 1
+                            ? trigger.failureRateThreshold
+                            : undefined,
+                    }
+                    : undefined,
+                planner: planner
+                    ? {
+                        maxVariants: typeof planner.maxVariants === "number" && planner.maxVariants >= 1 && planner.maxVariants <= 10
+                            ? planner.maxVariants
+                            : undefined,
+                        readOnlyRAGOnly: planner.readOnlyRAGOnly !== false,
+                    }
+                    : undefined,
+                critic: critic
+                    ? {
+                        weights: weights
+                            ? {
+                                success: typeof weights.success === "number" ? weights.success : undefined,
+                                cost: typeof weights.cost === "number" ? weights.cost : undefined,
+                                risk: typeof weights.risk === "number" ? weights.risk : undefined,
+                            }
+                            : undefined,
+                    }
+                    : undefined,
+                snapshot: snapshot
+                    ? {
+                        maxRelevantSkills: typeof snapshot.maxRelevantSkills === "number" && snapshot.maxRelevantSkills > 0
+                            ? snapshot.maxRelevantSkills
+                            : undefined,
+                    }
+                    : undefined,
+                experience: experience
+                    ? {
+                        enabled: experience.enabled === true,
+                        collection: typeof experience.collection === "string" ? experience.collection : undefined,
+                        reuseThreshold: typeof experience.reuseThreshold === "number" && experience.reuseThreshold >= 0 && experience.reuseThreshold <= 1
+                            ? experience.reuseThreshold
+                            : undefined,
+                        requireSnapshotMatch: experience.requireSnapshotMatch === true,
+                        storeOutcome: experience.storeOutcome === true,
+                        maxEntries: typeof experience.maxEntries === "number" && experience.maxEntries > 0 ? experience.maxEntries : undefined,
+                    }
+                    : undefined,
+            };
+        }
     }
     return base;
+}
+/** WO-1520: 可热重载的顶层配置键（不含 port、workspace、gateway.host 需保留） */
+export const RELOADABLE_CONFIG_KEYS = [
+    "model",
+    "apiKeyEnv",
+    "llm",
+    "memory",
+    "contextWindowRounds",
+    "reflectionToolCallInterval",
+    "summaryEveryRounds",
+    "evolution",
+    "planning",
+    "skills",
+    "mcp",
+    "heartbeat",
+    "gateway",
+    "roles",
+    "swarm",
+    "knowledge",
+    "diagnostic",
+    "flows",
+    "vectorEmbedding",
+    "localModel",
+    "retrospective",
+    "ideOperation",
+    "security",
+    "eventBus",
+    "agents",
+    "hotReload",
+    "taskExecution",
+    "taskResults",
+    "exploration",
+];
+/** WO-1521: 重载配置 — 仅将可重载部分浅替换到 currentConfig，保留 port、workspace、gateway.host。单次请求内 config 不变（WO-1522）。 */
+export function reloadConfig(currentConfig) {
+    const path = findConfigPath();
+    if (!path || !existsSync(path)) {
+        return { ok: false, message: "Config file not found" };
+    }
+    let newConfig;
+    try {
+        newConfig = loadConfig(path);
+    }
+    catch (e) {
+        return {
+            ok: false,
+            message: e instanceof Error ? e.message : String(e),
+        };
+    }
+    const preservedHost = currentConfig.gateway?.host;
+    for (const key of RELOADABLE_CONFIG_KEYS) {
+        if (key === "gateway") {
+            currentConfig[key] = newConfig[key];
+            if (currentConfig.gateway && preservedHost !== undefined) {
+                currentConfig.gateway.host = preservedHost;
+            }
+        }
+        else {
+            currentConfig[key] = newConfig[key];
+        }
+    }
+    return { ok: true };
 }
 /** Phase 10: 根据 sessionType 返回角色 system 片段；无配置时使用内置默认。 */
 const DEFAULT_ROLES = {

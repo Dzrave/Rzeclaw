@@ -60,6 +60,8 @@ export async function flushToL1(params: {
   store: IMemoryStore;
   workspaceId?: string;
   taskHint?: string;
+  /** WO-1511: 隐私隔离写入时不写主 audit，避免泄露 */
+  skipAuditLog?: boolean;
 }): Promise<{ summary: string; factCount: number }> {
   const convText = params.messages
     .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
@@ -104,13 +106,15 @@ export async function flushToL1(params: {
       layer: "L1",
     };
     await params.store.append(entry);
-    await writeAuditLog(workspaceDir, {
-      when: new Date().toISOString(),
-      who: params.sessionId,
-      from_where: params.sessionId,
-      entry_id: entry.id,
-      workspace_id: params.workspaceId,
-    });
+    if (!params.skipAuditLog) {
+      await writeAuditLog(workspaceDir, {
+        when: new Date().toISOString(),
+        who: params.sessionId,
+        from_where: params.sessionId,
+        entry_id: entry.id,
+        workspace_id: params.workspaceId,
+      });
+    }
   }
 
   for (const fact of facts) {
@@ -124,13 +128,15 @@ export async function flushToL1(params: {
       layer: "L1",
     };
     await params.store.append(entry);
-    await writeAuditLog(workspaceDir, {
-      when: new Date().toISOString(),
-      who: params.sessionId,
-      from_where: params.sessionId,
-      entry_id: entry.id,
-      workspace_id: params.workspaceId,
-    });
+    if (!params.skipAuditLog) {
+      await writeAuditLog(workspaceDir, {
+        when: new Date().toISOString(),
+        who: params.sessionId,
+        from_where: params.sessionId,
+        entry_id: entry.id,
+        workspace_id: params.workspaceId,
+      });
+    }
   }
 
   return { summary, factCount: facts.length };

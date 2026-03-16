@@ -1,11 +1,14 @@
 /**
  * Phase 13 WO-BT-003/016: 路由。基于 extractTaskHint + routes 表；同一 hint 多候选时按成功率优选（WO-BT-016）。
+ * Phase 14B WO-1433: 扩展 route() 产出 agentId（意图→Agent 映射，再在 boundFlowIds 内匹配 flow）。
  */
 
 import { extractTaskHint } from "../memory/task-hint.js";
 import type { FlowsRouteEntry, FlowsSlotRule } from "../config.js";
 import type { FlowDef } from "./types.js";
 import type { FlowSuccessRate } from "./outcomes.js";
+import type { RzeclawConfig } from "../config.js";
+import { getAgentBlueprint, hasAgentsEnabled } from "../agents/blueprints.js";
 
 export type MatchFlowContext = {
   routes: FlowsRouteEntry[];
@@ -17,6 +20,20 @@ export type MatchFlowContext = {
 export type MatchFlowResult = {
   flowId: string;
   params: Record<string, string>;
+};
+
+/** Phase 14B: 扩展路由结果，可含 targetAgentId */
+export type RouteResult = {
+  agentId?: string;
+  flowId?: string;
+  params: Record<string, string>;
+};
+
+/** Phase 14B: route() 的上下文（含 config 与 flow 库） */
+export type RouteContext = {
+  config: RzeclawConfig;
+  flowLibrary: Map<string, FlowDef>;
+  successRates?: Map<string, FlowSuccessRate>;
 };
 
 function normalizeHint(s: string): string {
@@ -81,4 +98,49 @@ export function matchFlow(message: string, context: MatchFlowContext): MatchFlow
   }
   const params = applySlotRules(message, chosen.slotRules);
   return { flowId: chosen.flowId, params };
+}
+
+/**
+ * Phase 14B: 扩展路由 — 若配置了 agents.routes 则先匹配 agentId，再在该 Agent 的 boundFlowIds 内匹配 flow；
+ * 否则与 matchFlow 一致（agentId 为空）。
+ */
+export function route(message: string, context: RouteContext): RouteResult {
+  const { config, flowLibrary, successRates } = context;
+  const flowsRoutes = config.flows?.routes ?? [];
+  const hint = extractTaskHint(message);
+
+  if (hasAgentsEnabled(config) && config.agents?.routes?.length) {
+    for (const ar of config.agents.routes) {
+      if (!matchHint(hint, ar.hint)) continue;
+      const blueprint = getAgentBlueprint(config, ar.agentId);
+      if (!blueprint) continue;
+      const boundSet = blueprint.boundFlowIds?.length
+        ? new Set(blueprint.boundFlowIds)
+        : null;
+      const filteredRoutes = boundSet
+        ? flowsRoutes.filter((r) => boundSet.has(r.flowId) && flowLibrary.has(r.flowId))
+        : flowsRoutes.filter((r) => flowLibrary.has(r.flowId));
+      const matched = matchFlow(message, {
+        routes: filteredRoutes,
+        flowLibrary,
+        successRates,
+      });
+      return {
+        agentId: ar.agentId,
+        flowId: matched?.flowId,
+        params: matched?.params ?? {},
+      };
+    }
+  }
+
+  const matched = matchFlow(message, {
+    routes: flowsRoutes,
+    flowLibrary,
+    successRates,
+  });
+  return {
+    agentId: undefined,
+    flowId: matched?.flowId ?? undefined,
+    params: matched?.params ?? {},
+  };
 }

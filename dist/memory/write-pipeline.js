@@ -85,13 +85,15 @@ export async function flushToL1(params) {
             layer: "L1",
         };
         await params.store.append(entry);
-        await writeAuditLog(workspaceDir, {
-            when: new Date().toISOString(),
-            who: params.sessionId,
-            from_where: params.sessionId,
-            entry_id: entry.id,
-            workspace_id: params.workspaceId,
-        });
+        if (!params.skipAuditLog) {
+            await writeAuditLog(workspaceDir, {
+                when: new Date().toISOString(),
+                who: params.sessionId,
+                from_where: params.sessionId,
+                entry_id: entry.id,
+                workspace_id: params.workspaceId,
+            });
+        }
     }
     for (const fact of facts) {
         const entry = {
@@ -104,13 +106,15 @@ export async function flushToL1(params) {
             layer: "L1",
         };
         await params.store.append(entry);
-        await writeAuditLog(workspaceDir, {
-            when: new Date().toISOString(),
-            who: params.sessionId,
-            from_where: params.sessionId,
-            entry_id: entry.id,
-            workspace_id: params.workspaceId,
-        });
+        if (!params.skipAuditLog) {
+            await writeAuditLog(workspaceDir, {
+                when: new Date().toISOString(),
+                who: params.sessionId,
+                from_where: params.sessionId,
+                entry_id: entry.id,
+                workspace_id: params.workspaceId,
+            });
+        }
     }
     return { summary, factCount: facts.length };
 }

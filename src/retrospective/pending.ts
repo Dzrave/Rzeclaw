@@ -9,10 +9,12 @@ const RETROSPECTIVE_DIR = ".rzeclaw/retrospective";
 const PENDING_DIR = "pending";
 
 export type PendingPatch = {
-  kind: "flow_edit" | "motivation_merge" | "report";
+  kind: "flow_edit" | "motivation_merge" | "report" | "exploration_trim";
   flowId?: string;
   ops?: unknown[];
   motivation?: unknown;
+  /** WO-1655: 探索经验修剪 — 待删除的条目 id 列表 */
+  explorationDeleteIds?: string[];
   summary: string;
 };
 
@@ -21,6 +23,8 @@ export type PendingRun = {
   summary: string;
   patches: PendingPatch[];
   applied?: boolean;
+  /** WO-1741: 记忆折叠产出的「昨日未完成任务」，供早报展示；用户通过 memory.rollingLedger.includePendingInReport 开启 */
+  rollingLedgerPendingTasks?: string[];
 };
 
 function pendingDatePath(workspace: string, date: string): string {
@@ -65,6 +69,23 @@ export async function listPendingDates(workspace: string): Promise<string[]> {
 }
 
 /**
+ * WO-1741: 将记忆折叠产出的「昨日未完成任务」合并入指定日期的早报；若该日无报告则创建仅含此字段的报告。
+ * reportDate 通常为「今天」，表示早报日期；tasks 为折叠得到的 pending_tasks。
+ */
+export async function mergeRollingLedgerPendingIntoReport(
+  workspace: string,
+  reportDate: string,
+  tasks: string[]
+): Promise<void> {
+  if (!tasks.length) return;
+  const existing = await getMorningReport(workspace, reportDate);
+  const run: PendingRun = existing
+    ? { ...existing, rollingLedgerPendingTasks: tasks }
+    : { date: reportDate, summary: "", patches: [], rollingLedgerPendingTasks: tasks };
+  await writePending(workspace, reportDate, run);
+}
+
+/**
  * 应用待审补丁：仅执行 flow_edit（applyEditOps）与 report 记录；motivation 需单独写入。
  */
 export async function applyPending(
@@ -91,6 +112,14 @@ export async function applyPending(
         else failed.push("motivation_merge");
       } catch (e) {
         failed.push(`motivation_merge: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    } else if (p.kind === "exploration_trim" && Array.isArray(p.explorationDeleteIds) && p.explorationDeleteIds.length > 0) {
+      try {
+        const { removeExplorationEntries } = await import("../exploration/experience.js");
+        removeExplorationEntries(workspace, p.explorationDeleteIds);
+        applied++;
+      } catch (e) {
+        failed.push(`exploration_trim: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
   }

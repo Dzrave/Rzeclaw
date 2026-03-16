@@ -1,9 +1,14 @@
+export { readRollingLedger, writeRollingLedger, emptyRollingLedger, formatRollingLedgerForPrompt, getRollingContextForPrompt, } from "./rolling-ledger.js";
+export { appendToTodayBuffer, readTodayBuffer } from "./today-buffer.js";
+export { runFoldForDate } from "./fold.js";
 export { createStore, JsonlMemoryStore } from "./store-jsonl.js";
 export { flushToL1 } from "./write-pipeline.js";
-export { writeSessionSummaryFile } from "./session-summary-file.js";
+export { writeSessionSummaryFile, readYesterdaySummary } from "./session-summary-file.js";
 export { retrieve, formatAsCitedBlocks, MEMORY_SYSTEM_INSTRUCTION, } from "./retrieve.js";
 export { extractTaskHint } from "./task-hint.js";
 export { promoteL1ToL2, markSuperseded } from "./l2.js";
-export { createColdStore, getHotFilePath, getColdFilePath } from "./store-jsonl.js";
+export { createColdStore, createPrivacyIsolatedStore, getHotFilePath, getColdFilePath, getPrivacyIsolatedDir, getPrivacyIsolatedFilePath, } from "./store-jsonl.js";
+export { cleanupPrivacyIsolatedForSession, cleanupPrivacyIsolated } from "./privacy-isolation.js";
+export { getAgentMemoryWorkspaceId, isAgentMemoryWorkspaceId } from "./agent-scope.js";
 export { archiveCold } from "./cold-archive.js";
 export { queryAuditLog, exportAuditLog } from "./audit-query.js";

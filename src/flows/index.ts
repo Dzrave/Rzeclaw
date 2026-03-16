@@ -18,8 +18,8 @@ export type {
 export { isBTFlow, isFSMFlow, isRunFlowAction } from "./types.js";
 export { loadFlowLibrary, getFlowLibrary } from "./loader.js";
 export type { LoadFlowLibraryResult } from "./loader.js";
-export { matchFlow } from "./router.js";
-export type { MatchFlowContext, MatchFlowResult } from "./router.js";
+export { matchFlow, route } from "./router.js";
+export type { MatchFlowContext, MatchFlowResult, RouteResult, RouteContext } from "./router.js";
 export { executeFlow } from "./executor.js";
 export type { ExecuteFlowResult, ExecuteFlowParams } from "./executor.js";
 export { appendOutcome, getFlowSuccessRates, getRecentOutcomes, getRecentFailureSummary } from "./outcomes.js";

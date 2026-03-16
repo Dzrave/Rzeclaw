@@ -1,3 +1,16 @@
+/** Phase 17: 5 天滑动情景记忆（记忆折叠）配置 */
+export type RollingLedgerConfig = {
+    /** 是否启用滚动账本注入与折叠 */
+    enabled?: boolean;
+    /** 账本保留天数，默认 5 */
+    windowDays?: number;
+    /** 可选时区，如 "Asia/Shanghai"；未配置则用本地日期 */
+    timezone?: string;
+    /** 可选：折叠任务 cron，如 "0 0 * * *" 每日零点；未配置则不自动执行（仅 RPC memory.fold 触发） */
+    foldCron?: string;
+    /** WO-1741: 是否将折叠产出的「昨日未完成任务」写入早报；默认 false，用户显式开启 */
+    includePendingInReport?: boolean;
+};
 export type MemoryConfig = {
     enabled?: boolean;
     /** Storage path; default derived from workspace/.rzeclaw/memory */
@@ -6,6 +19,8 @@ export type MemoryConfig = {
     workspaceId?: string;
     /** WO-407: L1 条目创建时间早于多少天移入冷存储 (0=关闭) */
     coldAfterDays?: number;
+    /** Phase 17: 5 天滑动情景记忆（记忆折叠） */
+    rollingLedger?: RollingLedgerConfig;
 };
 /** WO-BT-024: 进化插入树配置 */
 export type InsertTreeConfig = {
@@ -35,6 +50,52 @@ export type PlanningConfig = {
     maxSteps?: number;
     /** 消息长度超过此字符数视为复杂请求 (default 80) */
     complexThresholdChars?: number;
+};
+/** Phase 16 WO-1601: 探索层（Exploration Layer）配置 */
+export type ExplorationTriggerConfig = {
+    /** 开放性意图标签，命中则可能进入探索层 */
+    openIntents?: string[];
+    /** 消息长度 ≥ 此值视为复杂，可触发探索；不配置时沿用 planning.complexThresholdChars 或 80 */
+    complexThresholdChars?: number;
+    /** 可选：不确定性得分 ≥ 此值触发探索 */
+    uncertaintyThreshold?: number;
+    /** 某类任务近期失败率 ≥ 此值强制进入探索层 (0～1) */
+    failureRateThreshold?: number;
+};
+export type ExplorationPlannerConfig = {
+    /** 预案数量 3～5，默认 5 */
+    maxVariants?: number;
+    /** 仅只读 RAG，不调用写文件类工具，默认 true */
+    readOnlyRAGOnly?: boolean;
+};
+export type ExplorationCriticConfig = {
+    weights?: {
+        success?: number;
+        cost?: number;
+        risk?: number;
+    };
+};
+export type ExplorationSnapshotConfig = {
+    /** 先验扫描时取前 K 个相关技能，默认 10 */
+    maxRelevantSkills?: number;
+};
+export type ExplorationExperienceConfig = {
+    enabled?: boolean;
+    collection?: string;
+    reuseThreshold?: number;
+    requireSnapshotMatch?: boolean;
+    storeOutcome?: boolean;
+    maxEntries?: number;
+};
+export type ExplorationConfig = {
+    enabled?: boolean;
+    /** WO-1635: 探索层总超时毫秒，超时后降级为不探索 */
+    timeoutMs?: number;
+    trigger?: ExplorationTriggerConfig;
+    planner?: ExplorationPlannerConfig;
+    critic?: ExplorationCriticConfig;
+    snapshot?: ExplorationSnapshotConfig;
+    experience?: ExplorationExperienceConfig;
 };
 /** WO-606/608: 本地 Skill 目录，白名单加载 */
 export type SkillsConfig = {
@@ -238,6 +299,11 @@ export type DangerousCommandsConfig = {
 /** WO-SEC-003: process kill 保护 */
 /** WO-SEC-009: 权限域策略 */
 export type PermissionScopePolicy = "allow" | "confirm" | "deny";
+/** WO-1503: 事后检查与纠正 */
+export type PostActionReviewConfig = {
+    enableRiskClassification?: boolean;
+    highRiskSuggestReviewOnSessionEnd?: boolean;
+};
 export type SecurityConfig = {
     dangerousCommands?: DangerousCommandsConfig;
     processKillRequireConfirm?: boolean;
@@ -247,6 +313,14 @@ export type SecurityConfig = {
         scope: string;
         window: string;
     }>;
+    /** WO-1503: 风险分类与会话结束高风险建议 */
+    postActionReview?: PostActionReviewConfig;
+    /** WO-1510: 隐私会话下工具策略；allow_all=不限制，read_only=仅读类，none=禁止工具 */
+    privacySessionToolPolicy?: "allow_all" | "read_only" | "none";
+    /** WO-1512: 隐私会话下 ops.log；omit=不写，redact=脱敏后写 */
+    opsLogPrivacySessionPolicy?: "omit" | "redact";
+    /** WO-1511: 隐私隔离存储保留天数；0=会话结束即删除，>0=N 天后由清理任务删除；未配置则不写入隔离存储（隐私会话不写 L1） */
+    privacyIsolationRetentionDays?: number;
 };
 /** 多模型：LLM 提供商与云端/本地切换 */
 export type LlmProvider = "anthropic" | "deepseek" | "minimax" | "ollama";
@@ -316,8 +390,89 @@ export type RzeclawConfig = {
     ideOperation?: IdeOperationConfig;
     /** WO-SEC: 安全与隐私（危险命令、process 保护、权限域） */
     security?: SecurityConfig;
+    /** Phase 14A: Event Bus 为中枢；enabled 时 Gateway 仅发布/订阅，执行层独立消费 */
+    eventBus?: EventBusConfig;
+    /** Phase 14B: 多 Agent 实体（蓝图、意图→Agent 映射、默认 Agent） */
+    agents?: AgentsConfig;
+    /** WO-1525: 热重载；intervalSeconds>0 时轮询 mtime，allowExplicitReload 控制 config.reload */
+    hotReload?: HotReloadConfig;
+    /** WO-1548: 任务解耦；mode=in_process 与 Gateway 同进程，worker=独立 Worker（预留） */
+    taskExecution?: {
+        mode?: "in_process" | "worker";
+    };
+    /** WO-1548: 任务结果保留时长（分钟），过期可清理 */
+    taskResults?: {
+        retentionMinutes?: number;
+    };
+    /** Phase 16: 探索层与预案 Planner（Gatekeeper、先验扫描、Planner/Critic、探索经验） */
+    exploration?: ExplorationConfig;
 };
+/** WO-1525: 热重载配置 */
+export type HotReloadConfig = {
+    /** 定时检查配置文件变更的间隔（秒），0 表示不轮询，不少于 10 */
+    intervalSeconds?: number;
+    /** 是否允许通过 Gateway 方法 config.reload 触发，默认 true */
+    allowExplicitReload?: boolean;
+};
+/** Phase 14A: Event Bus 配置（进程内逻辑总线） */
+export type EventBusConfig = {
+    /** 是否启用：true 时 chat 经总线发布/订阅，执行层订阅 request、发布 response */
+    enabled?: boolean;
+    /** 等待 chat.response 超时毫秒，默认 300000 */
+    responseTimeoutMs?: number;
+};
+/** Phase 14B: Agent 蓝图 — 局部记忆配置 */
+export type AgentLocalMemoryConfig = {
+    enabled: boolean;
+    /** 相对 workspace 或独立路径；未配置时使用约定路径 .rzeclaw/memory/agent_<id>.jsonl */
+    storagePath?: string;
+    /** 检索条数上限，默认 5 */
+    retrieveLimit?: number;
+    /** 为 true 时检索合并「局部 + 全局只读」；默认 false 仅局部 */
+    includeGlobalRead?: boolean;
+};
+/** Phase 14B: Agent 蓝图（静态定义，运行时实例化） */
+export type AgentBlueprint = {
+    /** 唯一标识，如 code_reviewer、general */
+    id: string;
+    /** 显示名，用于日志与 UI */
+    name?: string;
+    /** 角色 system 片段（覆盖或补充 config.roles 按 sessionType 的片段） */
+    systemPrompt?: string;
+    /** 该 Agent 可用的 flowId 白名单；空则使用全局库且可匹配任意 route */
+    boundFlowIds?: string[];
+    /** 局部记忆 */
+    localMemory?: AgentLocalMemoryConfig;
+    /** 该 Agent 使用的 LLM（覆盖全局）；不配置则用全局 */
+    llm?: LlmConfig;
+    /** 该 Agent 绑定的工具子集（名称列表）；不配置则用全局合并工具 */
+    toolsFilter?: string[];
+};
+/** Phase 14B: 意图→Agent 映射（hint 匹配时选用该 Agent，再在其 boundFlowIds 内匹配 flow） */
+export type AgentRouteEntry = {
+    hint: string;
+    agentId: string;
+};
+/** Phase 14B: 多 Agent 配置 */
+export type AgentsConfig = {
+    blueprints?: AgentBlueprint[];
+    /** Router 未产出 agentId 时使用的默认蓝图 id；不配置则隐式「全局 runAgentLoop」 */
+    defaultAgentId?: string;
+    /** 意图到 agent 的映射；匹配后在该 Agent 的 boundFlowIds 内做 flow 匹配 */
+    routes?: AgentRouteEntry[];
+};
+/** WO-1526: 查找配置文件路径，供热重载 mtime 轮询使用 */
+export declare function findConfigPath(): string | null;
 export declare function loadConfig(overridePath?: string): RzeclawConfig;
+/** WO-1520: 可热重载的顶层配置键（不含 port、workspace、gateway.host 需保留） */
+export declare const RELOADABLE_CONFIG_KEYS: (keyof RzeclawConfig)[];
+/** WO-1521: 重载配置 — 仅将可重载部分浅替换到 currentConfig，保留 port、workspace、gateway.host。单次请求内 config 不变（WO-1522）。 */
+export declare function reloadConfig(currentConfig: RzeclawConfig): {
+    ok: true;
+} | {
+    ok: false;
+    message: string;
+};
 export declare function getRoleFragment(config: RzeclawConfig, sessionType: string | undefined): string | undefined;
 /** Phase 8: 读取 Gateway 认证用 API Key（环境变量） */
 export declare function getGatewayApiKey(config: RzeclawConfig): string | undefined;

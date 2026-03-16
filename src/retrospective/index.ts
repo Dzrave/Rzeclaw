@@ -4,6 +4,12 @@
 
 export { appendTelemetry, readTelemetry } from "./telemetry.js";
 export type { TelemetryEvent } from "./telemetry.js";
-export { writePending, getMorningReport, listPendingDates, applyPending } from "./pending.js";
+export {
+  writePending,
+  getMorningReport,
+  listPendingDates,
+  applyPending,
+  mergeRollingLedgerPendingIntoReport,
+} from "./pending.js";
 export type { PendingRun, PendingPatch } from "./pending.js";
 export { runRetrospective } from "./architect.js";

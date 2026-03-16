@@ -7,6 +7,10 @@ import type { IMemoryStore, QueryConditions } from "./store-interface.js";
 export declare function getHotFilePath(workspaceDir: string, workspaceId?: string): string;
 /** WO-407: 冷存储文件路径 */
 export declare function getColdFilePath(workspaceDir: string, workspaceId?: string): string;
+/** WO-1511: 隐私隔离存储目录；不参与全局 retrieve，仅本会话写入，会话结束或 N 天后清理 */
+export declare function getPrivacyIsolatedDir(workspaceDir: string): string;
+/** WO-1511: 某会话的隐私隔离存储文件路径 */
+export declare function getPrivacyIsolatedFilePath(workspaceDir: string, sessionId: string): string;
 export declare class JsonlMemoryStore implements IMemoryStore {
     private readonly filePath;
     constructor(filePath: string);
@@ -19,3 +23,5 @@ export declare class JsonlMemoryStore implements IMemoryStore {
 export declare function createStore(workspaceDir: string, workspaceId?: string): IMemoryStore;
 /** WO-407: 冷存储 Store，默认检索不包含冷数据，需显式传入 coldStore + includeCold */
 export declare function createColdStore(workspaceDir: string, workspaceId?: string): IMemoryStore;
+/** WO-1511: 隐私隔离 Store；写入 .rzeclaw/privacy_isolated/<sessionId>.jsonl，不参与全局检索与导出 */
+export declare function createPrivacyIsolatedStore(workspaceDir: string, sessionId: string): IMemoryStore;

@@ -2,6 +2,20 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir, platform } from "node:os";
 
+/** Phase 17: 5 天滑动情景记忆（记忆折叠）配置 */
+export type RollingLedgerConfig = {
+  /** 是否启用滚动账本注入与折叠 */
+  enabled?: boolean;
+  /** 账本保留天数，默认 5 */
+  windowDays?: number;
+  /** 可选时区，如 "Asia/Shanghai"；未配置则用本地日期 */
+  timezone?: string;
+  /** 可选：折叠任务 cron，如 "0 0 * * *" 每日零点；未配置则不自动执行（仅 RPC memory.fold 触发） */
+  foldCron?: string;
+  /** WO-1741: 是否将折叠产出的「昨日未完成任务」写入早报；默认 false，用户显式开启 */
+  includePendingInReport?: boolean;
+};
+
 export type MemoryConfig = {
   enabled?: boolean;
   /** Storage path; default derived from workspace/.rzeclaw/memory */
@@ -10,6 +24,8 @@ export type MemoryConfig = {
   workspaceId?: string;
   /** WO-407: L1 条目创建时间早于多少天移入冷存储 (0=关闭) */
   coldAfterDays?: number;
+  /** Phase 17: 5 天滑动情景记忆（记忆折叠） */
+  rollingLedger?: RollingLedgerConfig;
 };
 
 /** WO-BT-024: 进化插入树配置 */
@@ -42,6 +58,58 @@ export type PlanningConfig = {
   maxSteps?: number;
   /** 消息长度超过此字符数视为复杂请求 (default 80) */
   complexThresholdChars?: number;
+};
+
+/** Phase 16 WO-1601: 探索层（Exploration Layer）配置 */
+export type ExplorationTriggerConfig = {
+  /** 开放性意图标签，命中则可能进入探索层 */
+  openIntents?: string[];
+  /** 消息长度 ≥ 此值视为复杂，可触发探索；不配置时沿用 planning.complexThresholdChars 或 80 */
+  complexThresholdChars?: number;
+  /** 可选：不确定性得分 ≥ 此值触发探索 */
+  uncertaintyThreshold?: number;
+  /** 某类任务近期失败率 ≥ 此值强制进入探索层 (0～1) */
+  failureRateThreshold?: number;
+};
+
+export type ExplorationPlannerConfig = {
+  /** 预案数量 3～5，默认 5 */
+  maxVariants?: number;
+  /** 仅只读 RAG，不调用写文件类工具，默认 true */
+  readOnlyRAGOnly?: boolean;
+};
+
+export type ExplorationCriticConfig = {
+  weights?: {
+    success?: number;
+    cost?: number;
+    risk?: number;
+  };
+};
+
+export type ExplorationSnapshotConfig = {
+  /** 先验扫描时取前 K 个相关技能，默认 10 */
+  maxRelevantSkills?: number;
+};
+
+export type ExplorationExperienceConfig = {
+  enabled?: boolean;
+  collection?: string;
+  reuseThreshold?: number;
+  requireSnapshotMatch?: boolean;
+  storeOutcome?: boolean;
+  maxEntries?: number;
+};
+
+export type ExplorationConfig = {
+  enabled?: boolean;
+  /** WO-1635: 探索层总超时毫秒，超时后降级为不探索 */
+  timeoutMs?: number;
+  trigger?: ExplorationTriggerConfig;
+  planner?: ExplorationPlannerConfig;
+  critic?: ExplorationCriticConfig;
+  snapshot?: ExplorationSnapshotConfig;
+  experience?: ExplorationExperienceConfig;
 };
 
 /** WO-606/608: 本地 Skill 目录，白名单加载 */
@@ -272,12 +340,26 @@ export type DangerousCommandsConfig = {
 /** WO-SEC-009: 权限域策略 */
 export type PermissionScopePolicy = "allow" | "confirm" | "deny";
 
+/** WO-1503: 事后检查与纠正 */
+export type PostActionReviewConfig = {
+  enableRiskClassification?: boolean;
+  highRiskSuggestReviewOnSessionEnd?: boolean;
+};
+
 export type SecurityConfig = {
   dangerousCommands?: DangerousCommandsConfig;
   processKillRequireConfirm?: boolean;
   protectedPids?: number[];
   permissionScopes?: Partial<Record<string, PermissionScopePolicy>>;
   scheduledGrants?: Array<{ scope: string; window: string }>;
+  /** WO-1503: 风险分类与会话结束高风险建议 */
+  postActionReview?: PostActionReviewConfig;
+  /** WO-1510: 隐私会话下工具策略；allow_all=不限制，read_only=仅读类，none=禁止工具 */
+  privacySessionToolPolicy?: "allow_all" | "read_only" | "none";
+  /** WO-1512: 隐私会话下 ops.log；omit=不写，redact=脱敏后写 */
+  opsLogPrivacySessionPolicy?: "omit" | "redact";
+  /** WO-1511: 隐私隔离存储保留天数；0=会话结束即删除，>0=N 天后由清理任务删除；未配置则不写入隔离存储（隐私会话不写 L1） */
+  privacyIsolationRetentionDays?: number;
 };
 
 /** 多模型：LLM 提供商与云端/本地切换 */
@@ -347,12 +429,86 @@ export type RzeclawConfig = {
   ideOperation?: IdeOperationConfig;
   /** WO-SEC: 安全与隐私（危险命令、process 保护、权限域） */
   security?: SecurityConfig;
+  /** Phase 14A: Event Bus 为中枢；enabled 时 Gateway 仅发布/订阅，执行层独立消费 */
+  eventBus?: EventBusConfig;
+  /** Phase 14B: 多 Agent 实体（蓝图、意图→Agent 映射、默认 Agent） */
+  agents?: AgentsConfig;
+  /** WO-1525: 热重载；intervalSeconds>0 时轮询 mtime，allowExplicitReload 控制 config.reload */
+  hotReload?: HotReloadConfig;
+  /** WO-1548: 任务解耦；mode=in_process 与 Gateway 同进程，worker=独立 Worker（预留） */
+  taskExecution?: { mode?: "in_process" | "worker" };
+  /** WO-1548: 任务结果保留时长（分钟），过期可清理 */
+  taskResults?: { retentionMinutes?: number };
+  /** Phase 16: 探索层与预案 Planner（Gatekeeper、先验扫描、Planner/Critic、探索经验） */
+  exploration?: ExplorationConfig;
 };
+
+/** WO-1525: 热重载配置 */
+export type HotReloadConfig = {
+  /** 定时检查配置文件变更的间隔（秒），0 表示不轮询，不少于 10 */
+  intervalSeconds?: number;
+  /** 是否允许通过 Gateway 方法 config.reload 触发，默认 true */
+  allowExplicitReload?: boolean;
+};
+
+/** Phase 14A: Event Bus 配置（进程内逻辑总线） */
+export type EventBusConfig = {
+  /** 是否启用：true 时 chat 经总线发布/订阅，执行层订阅 request、发布 response */
+  enabled?: boolean;
+  /** 等待 chat.response 超时毫秒，默认 300000 */
+  responseTimeoutMs?: number;
+};
+
+/** Phase 14B: Agent 蓝图 — 局部记忆配置 */
+export type AgentLocalMemoryConfig = {
+  enabled: boolean;
+  /** 相对 workspace 或独立路径；未配置时使用约定路径 .rzeclaw/memory/agent_<id>.jsonl */
+  storagePath?: string;
+  /** 检索条数上限，默认 5 */
+  retrieveLimit?: number;
+  /** 为 true 时检索合并「局部 + 全局只读」；默认 false 仅局部 */
+  includeGlobalRead?: boolean;
+};
+
+/** Phase 14B: Agent 蓝图（静态定义，运行时实例化） */
+export type AgentBlueprint = {
+  /** 唯一标识，如 code_reviewer、general */
+  id: string;
+  /** 显示名，用于日志与 UI */
+  name?: string;
+  /** 角色 system 片段（覆盖或补充 config.roles 按 sessionType 的片段） */
+  systemPrompt?: string;
+  /** 该 Agent 可用的 flowId 白名单；空则使用全局库且可匹配任意 route */
+  boundFlowIds?: string[];
+  /** 局部记忆 */
+  localMemory?: AgentLocalMemoryConfig;
+  /** 该 Agent 使用的 LLM（覆盖全局）；不配置则用全局 */
+  llm?: LlmConfig;
+  /** 该 Agent 绑定的工具子集（名称列表）；不配置则用全局合并工具 */
+  toolsFilter?: string[];
+};
+
+/** Phase 14B: 意图→Agent 映射（hint 匹配时选用该 Agent，再在其 boundFlowIds 内匹配 flow） */
+export type AgentRouteEntry = {
+  hint: string;
+  agentId: string;
+};
+
+/** Phase 14B: 多 Agent 配置 */
+export type AgentsConfig = {
+  blueprints?: AgentBlueprint[];
+  /** Router 未产出 agentId 时使用的默认蓝图 id；不配置则隐式「全局 runAgentLoop」 */
+  defaultAgentId?: string;
+  /** 意图到 agent 的映射；匹配后在该 Agent 的 boundFlowIds 内做 flow 匹配 */
+  routes?: AgentRouteEntry[];
+};
+
 
 const DEFAULT_WORKSPACE = join(homedir(), ".rzeclaw", "workspace");
 const DEFAULT_PORT = 18789;
 
-function findConfigPath(): string | null {
+/** WO-1526: 查找配置文件路径，供热重载 mtime 轮询使用 */
+export function findConfigPath(): string | null {
   const cwd = process.cwd();
   const home = homedir();
   const dir = platform() === "win32" ? process.env.USERPROFILE || home : home;
@@ -389,12 +545,26 @@ export function loadConfig(overridePath?: string): RzeclawConfig {
     if (typeof data.apiKeyEnv === "string") base.apiKeyEnv = data.apiKeyEnv;
     if (data.memory != null && typeof data.memory === "object") {
       const m = data.memory as Record<string, unknown>;
+      const rl = m.rollingLedger != null && typeof m.rollingLedger === "object" ? (m.rollingLedger as Record<string, unknown>) : undefined;
       base.memory = {
         enabled: m.enabled === true,
         storagePath: typeof m.storagePath === "string" ? m.storagePath : undefined,
         workspaceId: typeof m.workspaceId === "string" ? m.workspaceId : undefined,
         coldAfterDays:
           typeof m.coldAfterDays === "number" && m.coldAfterDays >= 0 ? m.coldAfterDays : undefined,
+        rollingLedger:
+          rl != null
+            ? {
+                enabled: rl.enabled === true,
+                windowDays:
+                  typeof rl.windowDays === "number" && rl.windowDays >= 1 && rl.windowDays <= 30
+                    ? rl.windowDays
+                    : undefined,
+                timezone: typeof rl.timezone === "string" ? rl.timezone : undefined,
+                foldCron: typeof rl.foldCron === "string" ? rl.foldCron : undefined,
+                includePendingInReport: rl.includePendingInReport === true,
+              }
+            : undefined,
       };
     }
     if (typeof data.contextWindowRounds === "number" && data.contextWindowRounds > 0) {
@@ -732,6 +902,73 @@ export function loadConfig(overridePath?: string): RzeclawConfig {
             typeof (s as Record<string, unknown>).window === "string"
         );
       }
+      if (sec.postActionReview != null && typeof sec.postActionReview === "object") {
+        const par = sec.postActionReview as Record<string, unknown>;
+        base.security.postActionReview = {
+          enableRiskClassification: par.enableRiskClassification === true,
+          highRiskSuggestReviewOnSessionEnd: par.highRiskSuggestReviewOnSessionEnd === true,
+        };
+      }
+      if (sec.privacySessionToolPolicy === "read_only" || sec.privacySessionToolPolicy === "none") {
+        base.security.privacySessionToolPolicy = sec.privacySessionToolPolicy;
+      }
+      if (sec.opsLogPrivacySessionPolicy === "omit" || sec.opsLogPrivacySessionPolicy === "redact") {
+        base.security.opsLogPrivacySessionPolicy = sec.opsLogPrivacySessionPolicy;
+      }
+      if (typeof sec.privacyIsolationRetentionDays === "number" && sec.privacyIsolationRetentionDays >= 0) {
+        base.security.privacyIsolationRetentionDays = sec.privacyIsolationRetentionDays;
+      }
+    }
+    if (data.eventBus != null && typeof data.eventBus === "object") {
+      const eb = data.eventBus as Record<string, unknown>;
+      base.eventBus = {
+        enabled: eb.enabled === true,
+        responseTimeoutMs:
+          typeof eb.responseTimeoutMs === "number" && eb.responseTimeoutMs > 0
+            ? eb.responseTimeoutMs
+            : undefined,
+      };
+    }
+    if (data.agents != null && typeof data.agents === "object") {
+      const ag = data.agents as Record<string, unknown>;
+      const blueprintsRaw = Array.isArray(ag.blueprints) ? ag.blueprints : [];
+      const blueprints: AgentBlueprint[] = [];
+      for (const b of blueprintsRaw) {
+        if (b != null && typeof b === "object" && typeof (b as Record<string, unknown>).id === "string") {
+          const x = b as Record<string, unknown>;
+          const lm = x.localMemory;
+          blueprints.push({
+            id: x.id as string,
+            name: typeof x.name === "string" ? x.name : undefined,
+            systemPrompt: typeof x.systemPrompt === "string" ? x.systemPrompt : undefined,
+            boundFlowIds: Array.isArray(x.boundFlowIds) ? (x.boundFlowIds as string[]).filter((id) => typeof id === "string") : undefined,
+            localMemory:
+              lm != null && typeof lm === "object" && (lm as Record<string, unknown>).enabled === true
+                ? {
+                    enabled: true,
+                    storagePath: typeof (lm as Record<string, unknown>).storagePath === "string" ? (lm as Record<string, unknown>).storagePath as string : undefined,
+                    retrieveLimit: typeof (lm as Record<string, unknown>).retrieveLimit === "number" ? (lm as Record<string, unknown>).retrieveLimit as number : undefined,
+                    includeGlobalRead: (lm as Record<string, unknown>).includeGlobalRead === true,
+                  }
+                : undefined,
+            llm: undefined,
+            toolsFilter: Array.isArray(x.toolsFilter) ? (x.toolsFilter as unknown[]).filter((t) => typeof t === "string") as string[] : undefined,
+          });
+        }
+      }
+      const routesRaw = Array.isArray(ag.routes) ? ag.routes : [];
+      const routes: AgentRouteEntry[] = routesRaw.filter(
+        (r): r is AgentRouteEntry =>
+          r != null &&
+          typeof r === "object" &&
+          typeof (r as Record<string, unknown>).hint === "string" &&
+          typeof (r as Record<string, unknown>).agentId === "string"
+      ) as AgentRouteEntry[];
+      base.agents = {
+        blueprints: blueprints.length > 0 ? blueprints : undefined,
+        defaultAgentId: typeof ag.defaultAgentId === "string" ? ag.defaultAgentId : undefined,
+        routes: routes.length > 0 ? routes : undefined,
+      };
     }
     if (data.llm != null && typeof data.llm === "object") {
       const l = data.llm as Record<string, unknown>;
@@ -756,9 +993,167 @@ export function loadConfig(overridePath?: string): RzeclawConfig {
         };
       }
     }
+    if (data.hotReload != null && typeof data.hotReload === "object") {
+      const hr = data.hotReload as Record<string, unknown>;
+      base.hotReload = {
+        intervalSeconds:
+          typeof hr.intervalSeconds === "number" && hr.intervalSeconds >= 0 ? hr.intervalSeconds : undefined,
+        allowExplicitReload: hr.allowExplicitReload === false ? false : true,
+      };
+    }
+    if (data.taskExecution != null && typeof data.taskExecution === "object") {
+      const te = data.taskExecution as Record<string, unknown>;
+      base.taskExecution = {
+        mode: te.mode === "worker" ? "worker" : "in_process",
+      };
+    }
+    if (data.taskResults != null && typeof data.taskResults === "object") {
+      const tr = data.taskResults as Record<string, unknown>;
+      base.taskResults = {
+        retentionMinutes:
+          typeof tr.retentionMinutes === "number" && tr.retentionMinutes > 0 ? tr.retentionMinutes : undefined,
+      };
+    }
+    if (data.exploration != null && typeof data.exploration === "object") {
+      const ex = data.exploration as Record<string, unknown>;
+      const trigger = ex.trigger != null && typeof ex.trigger === "object" ? (ex.trigger as Record<string, unknown>) : undefined;
+      const planner = ex.planner != null && typeof ex.planner === "object" ? (ex.planner as Record<string, unknown>) : undefined;
+      const critic = ex.critic != null && typeof ex.critic === "object" ? (ex.critic as Record<string, unknown>) : undefined;
+      const weights = critic?.weights != null && typeof critic.weights === "object" ? (critic.weights as Record<string, unknown>) : undefined;
+      const snapshot = ex.snapshot != null && typeof ex.snapshot === "object" ? (ex.snapshot as Record<string, unknown>) : undefined;
+      const experience = ex.experience != null && typeof ex.experience === "object" ? (ex.experience as Record<string, unknown>) : undefined;
+      base.exploration = {
+        enabled: ex.enabled === true,
+        timeoutMs:
+          typeof ex.timeoutMs === "number" && ex.timeoutMs > 0 ? ex.timeoutMs : undefined,
+        trigger: trigger
+          ? {
+              openIntents: Array.isArray(trigger.openIntents)
+                ? (trigger.openIntents as unknown[]).filter((x): x is string => typeof x === "string")
+                : undefined,
+              complexThresholdChars:
+                typeof trigger.complexThresholdChars === "number" && trigger.complexThresholdChars >= 0
+                  ? trigger.complexThresholdChars
+                  : undefined,
+              uncertaintyThreshold:
+                typeof trigger.uncertaintyThreshold === "number" && trigger.uncertaintyThreshold >= 0 && trigger.uncertaintyThreshold <= 1
+                  ? trigger.uncertaintyThreshold
+                  : undefined,
+              failureRateThreshold:
+                typeof trigger.failureRateThreshold === "number" && trigger.failureRateThreshold >= 0 && trigger.failureRateThreshold <= 1
+                  ? trigger.failureRateThreshold
+                  : undefined,
+            }
+          : undefined,
+        planner: planner
+          ? {
+              maxVariants:
+                typeof planner.maxVariants === "number" && planner.maxVariants >= 1 && planner.maxVariants <= 10
+                  ? planner.maxVariants
+                  : undefined,
+              readOnlyRAGOnly: planner.readOnlyRAGOnly !== false,
+            }
+          : undefined,
+        critic: critic
+          ? {
+              weights: weights
+                ? {
+                    success: typeof weights.success === "number" ? weights.success : undefined,
+                    cost: typeof weights.cost === "number" ? weights.cost : undefined,
+                    risk: typeof weights.risk === "number" ? weights.risk : undefined,
+                  }
+                : undefined,
+            }
+          : undefined,
+        snapshot: snapshot
+          ? {
+              maxRelevantSkills:
+                typeof snapshot.maxRelevantSkills === "number" && snapshot.maxRelevantSkills > 0
+                  ? snapshot.maxRelevantSkills
+                  : undefined,
+            }
+          : undefined,
+        experience: experience
+          ? {
+              enabled: experience.enabled === true,
+              collection: typeof experience.collection === "string" ? experience.collection : undefined,
+              reuseThreshold:
+                typeof experience.reuseThreshold === "number" && experience.reuseThreshold >= 0 && experience.reuseThreshold <= 1
+                  ? experience.reuseThreshold
+                  : undefined,
+              requireSnapshotMatch: experience.requireSnapshotMatch === true,
+              storeOutcome: experience.storeOutcome === true,
+              maxEntries:
+                typeof experience.maxEntries === "number" && experience.maxEntries > 0 ? experience.maxEntries : undefined,
+            }
+          : undefined,
+      };
+    }
   }
 
   return base;
+}
+
+/** WO-1520: 可热重载的顶层配置键（不含 port、workspace、gateway.host 需保留） */
+export const RELOADABLE_CONFIG_KEYS: (keyof RzeclawConfig)[] = [
+  "model",
+  "apiKeyEnv",
+  "llm",
+  "memory",
+  "contextWindowRounds",
+  "reflectionToolCallInterval",
+  "summaryEveryRounds",
+  "evolution",
+  "planning",
+  "skills",
+  "mcp",
+  "heartbeat",
+  "gateway",
+  "roles",
+  "swarm",
+  "knowledge",
+  "diagnostic",
+  "flows",
+  "vectorEmbedding",
+  "localModel",
+  "retrospective",
+  "ideOperation",
+  "security",
+  "eventBus",
+  "agents",
+  "hotReload",
+  "taskExecution",
+  "taskResults",
+  "exploration",
+];
+
+/** WO-1521: 重载配置 — 仅将可重载部分浅替换到 currentConfig，保留 port、workspace、gateway.host。单次请求内 config 不变（WO-1522）。 */
+export function reloadConfig(currentConfig: RzeclawConfig): { ok: true } | { ok: false; message: string } {
+  const path = findConfigPath();
+  if (!path || !existsSync(path)) {
+    return { ok: false, message: "Config file not found" };
+  }
+  let newConfig: RzeclawConfig;
+  try {
+    newConfig = loadConfig(path);
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : String(e),
+    };
+  }
+  const preservedHost = currentConfig.gateway?.host;
+  for (const key of RELOADABLE_CONFIG_KEYS) {
+    if (key === "gateway") {
+      (currentConfig as Record<string, unknown>)[key] = (newConfig as Record<string, unknown>)[key];
+      if (currentConfig.gateway && preservedHost !== undefined) {
+        currentConfig.gateway.host = preservedHost;
+      }
+    } else {
+      (currentConfig as Record<string, unknown>)[key] = (newConfig as Record<string, unknown>)[key];
+    }
+  }
+  return { ok: true };
 }
 
 /** Phase 10: 根据 sessionType 返回角色 system 片段；无配置时使用内置默认。 */

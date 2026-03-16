@@ -7,7 +7,7 @@ import type { ToolDef, ToolResult } from "../tools/types.js";
 import type { RzeclawConfig } from "../config.js";
 import { validateToolArgs } from "../tools/validation.js";
 import { checkDangerousCommand } from "../security/dangerous-commands.js";
-import { getEffectivePolicy } from "../security/permission-scopes.js";
+import { getEffectivePolicy, isInScheduledGrant, TOOL_SCOPE_MAP } from "../security/permission-scopes.js";
 import { appendOpLog, summarizeResult, classifyOpRisk } from "../observability/op-log.js";
 import { resolvePlaceholders } from "./placeholders.js";
 import type { PlaceholderContext } from "./placeholders.js";
@@ -35,6 +35,13 @@ export type FlowRunToolContext = {
   runLLMNode?: (opts: { message: string; contextSummary?: string }) => Promise<{ content: string; success: boolean }>;
   /** WO-BT-022: 会话黑板，flow 内占位符 {{blackboard.xxx}} 与 write_slot 工具可读写 */
   blackboard?: Record<string, string>;
+  /** Phase 14B: 执行该 flow 的 Agent 实例/蓝图 id，写入 ops.log */
+  agentId?: string;
+  blueprintId?: string;
+  /** WO-1505: 会话 ID，写入 ops.log 便于按会话扫描高风险 */
+  sessionId?: string;
+  /** WO-1507: 本会话已授权 scope，同 scope 不再弹确认 */
+  sessionGrantedScopes?: string[];
 };
 
 async function runToolWithTimeout(
@@ -81,6 +88,9 @@ export async function runToolForFlow(
       risk_level: classifyOpRisk(toolName, resolved, validationFail.message),
       source: "flow",
       flowId: ctx.flowId,
+      ...(ctx.agentId != null && { agentId: ctx.agentId }),
+      ...(ctx.blueprintId != null && { blueprintId: ctx.blueprintId }),
+      ...(ctx.sessionId ? { sessionId: ctx.sessionId } : {}),
     });
     return result;
   }
@@ -105,6 +115,9 @@ export async function runToolForFlow(
           risk_level: "high",
           source: "flow",
           flowId: ctx.flowId,
+          ...(ctx.agentId != null && { agentId: ctx.agentId }),
+          ...(ctx.blueprintId != null && { blueprintId: ctx.blueprintId }),
+          ...(ctx.sessionId ? { sessionId: ctx.sessionId } : {}),
         });
         return result;
       }
@@ -125,6 +138,9 @@ export async function runToolForFlow(
           risk_level: "high",
           source: "flow",
           flowId: ctx.flowId,
+          ...(ctx.agentId != null && { agentId: ctx.agentId }),
+          ...(ctx.blueprintId != null && { blueprintId: ctx.blueprintId }),
+          ...(ctx.sessionId ? { sessionId: ctx.sessionId } : {}),
         });
         return result;
       }
@@ -150,6 +166,9 @@ export async function runToolForFlow(
         risk_level: "high",
         source: "flow",
         flowId: ctx.flowId,
+        ...(ctx.agentId != null && { agentId: ctx.agentId }),
+        ...(ctx.blueprintId != null && { blueprintId: ctx.blueprintId }),
+        ...(ctx.sessionId ? { sessionId: ctx.sessionId } : {}),
       });
       return result;
     }
@@ -173,15 +192,21 @@ export async function runToolForFlow(
       risk_level: "high",
       source: "flow",
       flowId: ctx.flowId,
+      ...(ctx.agentId != null && { agentId: ctx.agentId }),
+      ...(ctx.blueprintId != null && { blueprintId: ctx.blueprintId }),
+      ...(ctx.sessionId ? { sessionId: ctx.sessionId } : {}),
     });
     return result;
   }
-  if (effectivePolicy === "confirm") {
+  const scope = TOOL_SCOPE_MAP[toolName] ?? toolName;
+  const alreadyGranted =
+    ctx.sessionGrantedScopes?.includes(scope) || isInScheduledGrant(scope, ctx.config);
+  if (effectivePolicy === "confirm" && !alreadyGranted) {
     const result: ToolResult = {
       ok: false,
       error: "该操作需用户确认后方可执行。",
       code: "REQUIRES_CONFIRMATION",
-      suggestion: "请向用户说明将要执行的操作，待用户批准后再重试。",
+      suggestion: "请向用户说明将要执行的操作，待用户批准后再重试；或使用「本次会话允许」后同 scope 不再确认。",
     };
     await appendOpLog(ctx.workspace, {
       op_id: randomUUID(),
@@ -193,6 +218,9 @@ export async function runToolForFlow(
       risk_level: classifyOpRisk(toolName, resolved, "skipped: requires user confirmation"),
       source: "flow",
       flowId: ctx.flowId,
+      ...(ctx.agentId != null && { agentId: ctx.agentId }),
+      ...(ctx.blueprintId != null && { blueprintId: ctx.blueprintId }),
+      ...(ctx.sessionId ? { sessionId: ctx.sessionId } : {}),
     });
     return result;
   }
@@ -215,6 +243,9 @@ export async function runToolForFlow(
       risk_level: "low",
       source: "flow",
       flowId: ctx.flowId,
+      ...(ctx.agentId != null && { agentId: ctx.agentId }),
+      ...(ctx.blueprintId != null && { blueprintId: ctx.blueprintId }),
+      ...(ctx.sessionId ? { sessionId: ctx.sessionId } : {}),
     });
     return result;
   }
@@ -249,6 +280,9 @@ export async function runToolForFlow(
     risk_level: classifyOpRisk(toolName, resolved, resultSummary),
     source: "flow",
     flowId: ctx.flowId,
+    ...(ctx.agentId != null && { agentId: ctx.agentId }),
+    ...(ctx.blueprintId != null && { blueprintId: ctx.blueprintId }),
+    ...(ctx.sessionId ? { sessionId: ctx.sessionId } : {}),
   });
   return result;
 }

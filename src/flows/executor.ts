@@ -27,6 +27,12 @@ export type ExecuteFlowParams = {
   onLLMNode?: (opts: { message: string; contextSummary?: string }) => Promise<{ content: string; success: boolean }>;
   /** WO-BT-022: 会话黑板，flow 内可读写（占位符 {{blackboard.xxx}}、write_slot 工具） */
   blackboard?: Record<string, string>;
+  /** Phase 14B: 执行该 flow 的 Agent 实例/蓝图 id，写入 ops.log */
+  agentId?: string;
+  blueprintId?: string;
+  /** WO-1505: 会话 ID，写入 ops.log；WO-1507: 本会话已授权 scope */
+  sessionId?: string;
+  sessionGrantedScopes?: string[];
 };
 
 /**
@@ -49,6 +55,10 @@ export async function executeFlow(params: ExecuteFlowParams): Promise<ExecuteFlo
     userMessage: params.userMessage,
     runLLMNode: params.onLLMNode,
     blackboard: params.blackboard,
+    agentId: params.agentId,
+    blueprintId: params.blueprintId,
+    sessionId: params.sessionId,
+    sessionGrantedScopes: params.sessionGrantedScopes,
     runSubFlow:
       flowLibrary &&
       (async (flowId: string, subParams: Record<string, string>) => {

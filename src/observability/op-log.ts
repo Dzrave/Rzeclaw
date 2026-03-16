@@ -27,6 +27,11 @@ export type OpLogEntry = {
   /** WO-BT-007: 来源为 flow 时标注，便于审计区分 */
   source?: "flow" | "agent";
   flowId?: string;
+  /** Phase 14B: 执行该操作的 Agent 实例 id / 蓝图 id，便于按 Agent 过滤与统计 */
+  agentId?: string;
+  blueprintId?: string;
+  /** WO-1505: 会话 ID，用于按会话扫描高风险与会话结束建议 */
+  sessionId?: string;
 };
 
 /**
@@ -59,11 +64,23 @@ export function classifyOpRisk(
 
 const OP_LOG_FILENAME = "ops.log";
 
+/** WO-1512: 隐私会话下可选不写或脱敏后写 */
+export type AppendOpLogOptions = {
+  /** 为 true 时不写入 ops.log（隐私会话 + opsLogPrivacySessionPolicy === "omit"） */
+  skipWrite?: boolean;
+};
+
 /**
  * 追加一条操作记录到 workspace/.rzeclaw/ops.log；目录不存在则创建。
  * WO-SEC-005: 写入前对 args、result_summary 脱敏，避免敏感信息落盘。
+ * WO-1512: 传入 options.skipWrite 时跳过写入（隐私会话脱敏策略）。
  */
-export async function appendOpLog(workspaceRoot: string, entry: OpLogEntry): Promise<void> {
+export async function appendOpLog(
+  workspaceRoot: string,
+  entry: OpLogEntry,
+  options?: AppendOpLogOptions
+): Promise<void> {
+  if (options?.skipWrite) return;
   const dir = join(workspaceRoot, ".rzeclaw");
   const file = join(dir, OP_LOG_FILENAME);
   try {
@@ -115,6 +132,17 @@ export async function readLastNEntries(workspaceRoot: string, n: number): Promis
   } catch {
     return [];
   }
+}
+
+/** WO-1505: 读取某会话最近 N 条操作记录（用于会话结束高风险建议）。 */
+export async function readLastNEntriesBySession(
+  workspaceRoot: string,
+  sessionId: string,
+  n: number
+): Promise<OpLogEntry[]> {
+  const all = await readLastNEntries(workspaceRoot, Math.max(n * 5, 500));
+  const filtered = all.filter((e) => e.sessionId === sessionId);
+  return filtered.slice(-n);
 }
 
 /** WO-BT-018 可选：读取某 flow 最近若干条失败的工具调用（source=flow, flowId 匹配, result_ok=false），用于拼入 failureSummary。 */

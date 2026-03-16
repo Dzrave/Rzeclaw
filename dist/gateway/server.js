@@ -1,12 +1,22 @@
 import { WebSocketServer } from "ws";
 import { runAgentLoop } from "../agent/loop.js";
-import { createStore } from "../memory/store-jsonl.js";
+import { subscribe, publish, requestResponse, createCorrelationId, publishStream, TOPIC_CHAT_REQUEST, TOPIC_CHAT_RESPONSE, TOPIC_CHAT_STREAM, TOPIC_PIPELINE_STAGE_DONE, TOPIC_PLAN_READY, } from "../event-bus/index.js";
+import { handlePipelineStageDone, isPipelineStageDonePayload } from "../collaboration/pipeline-runner.js";
+import { subscribeToDelegateRequest } from "../collaboration/delegate.js";
+import { subscribeToSwarmBroadcast } from "../collaboration/swarm.js";
+import { handleChatRequest, runExplorationLayerForEventBus } from "./chat-executor.js";
+import { createStore, createPrivacyIsolatedStore } from "../memory/store-jsonl.js";
 import { flushToL1, generateL0Summary } from "../memory/write-pipeline.js";
-import { writeSessionSummaryFile } from "../memory/session-summary-file.js";
+import { writeSessionSummaryFile, readYesterdaySummary } from "../memory/session-summary-file.js";
+import { getRollingContextForPrompt } from "../memory/rolling-ledger.js";
+import { appendToTodayBuffer } from "../memory/today-buffer.js";
+import { runFoldForDate } from "../memory/fold.js";
+import { mergeRollingLedgerPendingIntoReport } from "../retrospective/index.js";
 import { extractTaskHint } from "../memory/task-hint.js";
 import { promoteL1ToL2 } from "../memory/l2.js";
 import { writePromptSuggestions } from "../evolution/prompt-suggestions.js";
 import { archiveCold } from "../memory/cold-archive.js";
+import { cleanupPrivacyIsolatedForSession, cleanupPrivacyIsolated } from "../memory/privacy-isolation.js";
 import { writeSnapshot, readSnapshot, listSnapshots } from "../session/snapshot.js";
 import { readCanvas, updateCanvas } from "../canvas/index.js";
 import { getMergedTools } from "../tools/merged.js";
@@ -19,21 +29,27 @@ import { runRetrospective, getMorningReport, listPendingDates, applyPending } fr
 import { applyEditOps } from "../flows/crud.js";
 import { addMotivationEntry } from "../rag/motivation.js";
 import { singleTurnLLM } from "../llm/index.js";
-import { getGatewayApiKey, isLlmReady, isLocalIntentClassifierAvailable } from "../config.js";
+import { getGatewayApiKey, isLlmReady, isLocalIntentClassifierAvailable, reloadConfig, findConfigPath } from "../config.js";
+import { listAllInstances } from "../agents/instances.js";
+import { getAgentBlueprint } from "../agents/blueprints.js";
+import { createTask, setTaskRunning, setTaskCompleted, setTaskFailed, getResult, listBySession, cleanupExpired, } from "../task-results/store.js";
+import { readLastNEntriesBySession } from "../observability/op-log.js";
 import { callIntentClassifier } from "../local-model/index.js";
 import { ingestPaths } from "../knowledge/index.js";
 import { generateReport, writeSuggestionsFile } from "../diagnostic/index.js";
 import path from "node:path";
-import { access } from "node:fs/promises";
+import { access, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 /** Phase 8: 每连接认证状态 */
 const authenticatedSockets = new WeakMap();
+/** Phase 15 WO-OF-003: 本连接是否有进行中的 chat，供 office.status 返回 executing */
+const chatInProgressByWs = new WeakMap();
 const sessions = new Map();
 function getOrCreateSession(sessionId, sessionType) {
     let s = sessions.get(sessionId);
     if (!s) {
-        s = { messages: [], blackboard: {}, sessionState: "Idle", ...(sessionType ? { sessionType } : {}) };
+        s = { messages: [], blackboard: {}, sessionState: "Idle", grantedScopes: [], ...(sessionType ? { sessionType } : {}) };
         sessions.set(sessionId, s);
     }
     else {
@@ -43,12 +59,101 @@ function getOrCreateSession(sessionId, sessionType) {
             s.blackboard = {};
         if (s.sessionState == null)
             s.sessionState = "Idle";
+        if (s.grantedScopes == null)
+            s.grantedScopes = [];
     }
     return s;
 }
 export function createGatewayServer(config, port) {
     const host = config.gateway?.host ?? "127.0.0.1";
     const wss = new WebSocketServer({ host, port });
+    /** Phase 14A: Event Bus 启用时，correlationId → { ws, id }，用于 chat.stream 回传 */
+    const pendingStreamByCorrelationId = new Map();
+    if (config.eventBus?.enabled === true) {
+        subscribe(TOPIC_PIPELINE_STAGE_DONE, (payload) => {
+            if (isPipelineStageDonePayload(payload)) {
+                void handlePipelineStageDone(config, payload, (chunk) => {
+                    publishStream({ correlationId: payload.correlationId, chunk });
+                });
+            }
+        });
+        subscribeToDelegateRequest(config);
+        subscribeToSwarmBroadcast(config);
+        const retentionMinutes = config.taskResults?.retentionMinutes ?? 24 * 60;
+        const workspace = path.resolve(config.workspace);
+        const runExecutionHandler = async (event) => {
+            createTask(event.correlationId, event.sessionId, retentionMinutes);
+            setTaskRunning(event.correlationId);
+            try {
+                const response = await handleChatRequest(config, event, (chunk) => {
+                    publishStream({ correlationId: event.correlationId, chunk });
+                });
+                if (response.pipelineNextAgentId) {
+                    const stageEvent = {
+                        pipelineId: event.correlationId,
+                        correlationId: event.correlationId,
+                        sourceAgentId: response.sourceAgentId,
+                        output: response.content ?? "",
+                        nextAgentId: response.pipelineNextAgentId,
+                        blackboardSnapshot: response.blackboard,
+                        ts: new Date().toISOString(),
+                    };
+                    publish(TOPIC_PIPELINE_STAGE_DONE, stageEvent);
+                }
+                else {
+                    setTaskCompleted(event.correlationId, response, { workspace, retentionMinutes });
+                    publish(TOPIC_CHAT_RESPONSE, response);
+                }
+            }
+            catch (err) {
+                const errMsg = err instanceof Error ? err.message : String(err);
+                setTaskFailed(event.correlationId, errMsg, { workspace, retentionMinutes });
+                publish(TOPIC_CHAT_RESPONSE, {
+                    correlationId: event.correlationId,
+                    error: errMsg,
+                });
+            }
+        };
+        if (config.exploration?.enabled) {
+            // WO-1605/1634: 探索层订阅 chat.request，发布 task.plan_ready 或 chat.response（fallback）；执行层订阅 plan_ready
+            subscribe(TOPIC_CHAT_REQUEST, async (event) => {
+                createTask(event.correlationId, event.sessionId, retentionMinutes);
+                setTaskRunning(event.correlationId);
+                try {
+                    const result = await runExplorationLayerForEventBus(config, event);
+                    if (result.action === "response") {
+                        setTaskCompleted(event.correlationId, result.response, { workspace, retentionMinutes });
+                        publish(TOPIC_CHAT_RESPONSE, result.response);
+                    }
+                    else {
+                        publish(TOPIC_PLAN_READY, result.event);
+                    }
+                }
+                catch (err) {
+                    const errMsg = err instanceof Error ? err.message : String(err);
+                    setTaskFailed(event.correlationId, errMsg, { workspace, retentionMinutes });
+                    publish(TOPIC_CHAT_RESPONSE, { correlationId: event.correlationId, error: errMsg });
+                }
+            });
+            subscribe(TOPIC_PLAN_READY, (event) => {
+                void runExecutionHandler(event);
+            });
+        }
+        else {
+            subscribe(TOPIC_CHAT_REQUEST, (event) => {
+                void runExecutionHandler(event);
+            });
+        }
+        subscribe(TOPIC_CHAT_STREAM, (ev) => {
+            const pending = pendingStreamByCorrelationId.get(ev.correlationId);
+            if (pending) {
+                try {
+                    pending.ws.send(JSON.stringify({ id: pending.id, stream: "text", chunk: ev.chunk }));
+                }
+                catch (_) { }
+            }
+        });
+    }
     let bonjourInstance = null;
     wss.on("listening", () => {
         console.log(`[rzeclaw] Gateway ws://${host}:${port}`);
@@ -88,6 +193,73 @@ export function createGatewayServer(config, port) {
                     console.log("[rzeclaw] Diagnostic report:", filePath);
                 })().catch((e) => console.error("[rzeclaw] Diagnostic report error:", e));
             }, intervalMs);
+        }
+        const hotReloadInterval = config.hotReload?.intervalSeconds ?? 0;
+        if (hotReloadInterval >= 10) {
+            const configPath = findConfigPath();
+            if (configPath) {
+                let lastMtime = 0;
+                setInterval(async () => {
+                    try {
+                        const st = await stat(configPath);
+                        const m = st.mtimeMs;
+                        if (lastMtime > 0 && m > lastMtime) {
+                            const result = reloadConfig(config);
+                            if (result.ok) {
+                                console.log("[rzeclaw] config hot-reloaded (mtime change)");
+                            }
+                        }
+                        lastMtime = m;
+                    }
+                    catch (_) { }
+                }, hotReloadInterval * 1000);
+            }
+        }
+        const taskCleanupIntervalMs = 10 * 60 * 1000; // 10 min
+        setInterval(() => {
+            cleanupExpired(path.resolve(config.workspace)).catch(() => { });
+        }, taskCleanupIntervalMs);
+        // Phase 17 WO-1741: foldCron 定时折叠（不默认开启；仅当用户配置 foldCron 时执行）
+        const foldCron = config.memory?.rollingLedger?.foldCron;
+        if (typeof foldCron === "string" &&
+            foldCron.trim() !== "" &&
+            config.memory?.rollingLedger?.enabled === true) {
+            const parts = foldCron.trim().split(/\s+/);
+            const cronMin = parts.length >= 1 ? parseInt(parts[0], 10) : 0;
+            const cronHour = parts.length >= 2 ? parseInt(parts[1], 10) : 0;
+            if (!Number.isNaN(cronMin) && !Number.isNaN(cronHour)) {
+                let lastFoldRunDate = null;
+                setInterval(() => {
+                    const now = new Date();
+                    if (now.getMinutes() !== cronMin || now.getHours() !== cronHour)
+                        return;
+                    const yesterday = new Date(now);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const yesterdayStr = yesterday.toISOString().slice(0, 10);
+                    if (lastFoldRunDate === yesterdayStr)
+                        return;
+                    lastFoldRunDate = yesterdayStr;
+                    const workspace = path.resolve(config.workspace);
+                    (async () => {
+                        try {
+                            const result = await runFoldForDate(workspace, yesterdayStr, config);
+                            if (result.success &&
+                                config.memory?.rollingLedger?.includePendingInReport === true &&
+                                result.foldedPendingTasks?.length) {
+                                const today = now.toISOString().slice(0, 10);
+                                await mergeRollingLedgerPendingIntoReport(workspace, today, result.foldedPendingTasks);
+                            }
+                            if (result.success) {
+                                console.log("[rzeclaw] Rolling ledger fold completed for", yesterdayStr);
+                            }
+                        }
+                        catch (e) {
+                            console.error("[rzeclaw] Rolling ledger fold error:", e);
+                        }
+                    })().catch(() => { });
+                }, 60 * 1000);
+                console.log("[rzeclaw] Rolling ledger foldCron scheduled:", foldCron);
+            }
         }
     });
     wss.on("connection", (ws) => {
@@ -152,6 +324,9 @@ export function createGatewayServer(config, port) {
                     const session = getOrCreateSession(sessionId);
                     const workspace = path.resolve(config.workspace);
                     if (session.sessionFlags?.privacy) {
+                        if (config.security?.privacyIsolationRetentionDays === 0) {
+                            await cleanupPrivacyIsolatedForSession(workspace, sessionId);
+                        }
                         send({ sessionId, saved: false, reason: "privacy" });
                         return;
                     }
@@ -161,7 +336,27 @@ export function createGatewayServer(config, port) {
                         sessionSummary: session.sessionSummary,
                         sessionType: session.sessionType,
                     });
-                    send({ sessionId, saved: true });
+                    let highRiskOpsSuggestedReview = false;
+                    if (config.security?.postActionReview?.highRiskSuggestReviewOnSessionEnd) {
+                        const entries = await readLastNEntriesBySession(workspace, sessionId, 100);
+                        highRiskOpsSuggestedReview = entries.some((e) => e.risk_level === "high");
+                    }
+                    send({ sessionId, saved: true, ...(highRiskOpsSuggestedReview && { highRiskOpsSuggestedReview: true }) });
+                    return;
+                }
+                if (method === "scope.grantSession") {
+                    const scope = params.scope;
+                    const sessionId = params.sessionId || "main";
+                    if (!scope || typeof scope !== "string") {
+                        sendError("Missing or invalid params.scope");
+                        return;
+                    }
+                    const session = getOrCreateSession(sessionId);
+                    if (!session.grantedScopes)
+                        session.grantedScopes = [];
+                    if (!session.grantedScopes.includes(scope))
+                        session.grantedScopes.push(scope);
+                    send({ ok: true, scope, sessionId });
                     return;
                 }
                 if (method === "session.list") {
@@ -196,6 +391,153 @@ export function createGatewayServer(config, port) {
                     });
                     return;
                 }
+                if (method === "agents.list") {
+                    const sessionId = params.sessionId || "main";
+                    const session = sessions.get(sessionId);
+                    const mainBlueprintId = session?.lastRespondingBlueprintId;
+                    const all = listAllInstances(config);
+                    let mainAssigned = false;
+                    const agents = all.map((inst) => {
+                        const blueprint = getAgentBlueprint(config, inst.blueprintId);
+                        const isMain = !mainAssigned && !!mainBlueprintId && inst.blueprintId === mainBlueprintId;
+                        if (isMain)
+                            mainAssigned = true;
+                        return {
+                            instanceId: inst.instanceId,
+                            agentId: inst.instanceId,
+                            blueprintId: inst.blueprintId,
+                            name: blueprint?.name ?? inst.blueprintId,
+                            state: inst.state,
+                            detail: undefined,
+                            sessionId: inst.sessionId,
+                            lastActiveAt: inst.lastActiveAt,
+                            createdAt: inst.createdAt,
+                            isMain,
+                        };
+                    });
+                    send({ agents });
+                    return;
+                }
+                if (method === "agents.blueprints") {
+                    const blueprints = (config.agents?.blueprints ?? []).map((b) => ({
+                        id: b.id,
+                        name: b.name,
+                    }));
+                    send({ blueprints });
+                    return;
+                }
+                if (method === "office.status") {
+                    const inProgress = chatInProgressByWs.get(ws) === true;
+                    const state = inProgress ? "executing" : "idle";
+                    const sessionId = params.sessionId || "main";
+                    const session = sessions.get(sessionId);
+                    const detail = session?.sessionGoal ? session.sessionGoal.slice(0, 80) : undefined;
+                    send({ state, detail });
+                    return;
+                }
+                if (method === "memory.yesterdaySummary") {
+                    const workspace = path.resolve(params.workspace || config.workspace);
+                    try {
+                        const { date, memo } = await readYesterdaySummary(workspace);
+                        send({ success: true, date, memo });
+                    }
+                    catch {
+                        send({ success: false, memo: "" });
+                    }
+                    return;
+                }
+                if (method === "memory.fold") {
+                    if (!config.memory?.rollingLedger?.enabled) {
+                        sendError("memory.rollingLedger is not enabled");
+                        return;
+                    }
+                    const workspace = path.resolve(params.workspace || config.workspace);
+                    const dateParam = params.date;
+                    const date = typeof dateParam === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
+                        ? dateParam
+                        : (() => {
+                            const d = new Date();
+                            d.setDate(d.getDate() - 1);
+                            return d.toISOString().slice(0, 10);
+                        })();
+                    try {
+                        const result = await runFoldForDate(workspace, date, config);
+                        if (result.success &&
+                            config.memory?.rollingLedger?.includePendingInReport === true &&
+                            result.foldedPendingTasks?.length) {
+                            const today = new Date().toISOString().slice(0, 10);
+                            await mergeRollingLedgerPendingIntoReport(workspace, today, result.foldedPendingTasks);
+                        }
+                        send({
+                            success: result.success,
+                            date: result.date,
+                            evicted: !!result.evicted,
+                            error: result.error,
+                        });
+                    }
+                    catch (e) {
+                        send({
+                            success: false,
+                            date: "",
+                            error: e instanceof Error ? e.message : String(e),
+                        });
+                    }
+                    return;
+                }
+                if (method === "task.getResult") {
+                    const correlationId = params.correlationId;
+                    if (!correlationId || typeof correlationId !== "string") {
+                        sendError("Missing params.correlationId");
+                        return;
+                    }
+                    const workspace = path.resolve(config.workspace);
+                    const result = await getResult(correlationId, { workspace });
+                    if (result === null) {
+                        send({ status: "not_found" });
+                    }
+                    else if ("status" in result && result.status === "expired") {
+                        send({ status: "expired" });
+                    }
+                    else {
+                        send({
+                            status: result.status,
+                            content: result.content,
+                            error: result.error,
+                            citedMemoryIds: result.citedMemoryIds,
+                            completedAt: result.completedAt,
+                        });
+                    }
+                    return;
+                }
+                if (method === "task.listBySession") {
+                    const sessionId = params.sessionId || "main";
+                    const limit = typeof params.limit === "number" && params.limit > 0 ? Math.min(params.limit, 100) : 20;
+                    const list = listBySession(sessionId, limit);
+                    send({ tasks: list });
+                    return;
+                }
+                if (method === "config.reload") {
+                    if (config.hotReload?.allowExplicitReload === false) {
+                        sendError("Explicit config reload is disabled (hotReload.allowExplicitReload: false)");
+                        return;
+                    }
+                    const result = reloadConfig(config);
+                    if (result.ok) {
+                        console.log("[rzeclaw] config hot-reloaded");
+                        try {
+                            const auditDir = path.join(path.resolve(config.workspace), ".rzeclaw");
+                            await access(auditDir).catch(() => import("node:fs/promises").then(({ mkdir }) => mkdir(auditDir, { recursive: true })));
+                            const { appendFile } = await import("node:fs/promises");
+                            await appendFile(path.join(auditDir, "hot_reload_audit.log"), JSON.stringify({ event: "hot_reload", ts: new Date().toISOString(), reason: "config.reload" }) + "\n", "utf-8");
+                        }
+                        catch (_) { }
+                        send({ ok: true });
+                    }
+                    else {
+                        send({ ok: false, message: result.message });
+                    }
+                    return;
+                }
                 if (method === "chat") {
                     const message = params.message;
                     const sessionId = params.sessionId || "main";
@@ -223,343 +565,462 @@ export function createGatewayServer(config, port) {
                         if (newSummary)
                             session.sessionSummary = newSummary;
                     }
-                    if (config.flows?.enabled === true && config.flows.routes?.length && config.flows.libraryPath) {
-                        const flowLibrary = await getFlowLibrary(workspace, config.flows.libraryPath);
-                        const successRates = await getFlowSuccessRates(workspace, config.flows.libraryPath);
-                        let matched = null;
-                        let intentSource = "none";
-                        if (config.vectorEmbedding?.enabled && config.vectorEmbedding.collections?.motivation?.enabled) {
-                            const motivationHits = await ragSearch(config, workspace, "motivation", message, 1);
-                            const threshold = config.vectorEmbedding.motivationThreshold ?? 0.75;
-                            const hit = motivationHits[0];
-                            const t = hit?.metadata?.translated;
-                            const conf = hit?.metadata?.confidence_default ?? hit?.score ?? 0;
-                            if (hit && (hit.score >= threshold || conf >= threshold) && t?.state === "ROUTE_TO_LOCAL_FLOW" && t.flowId && flowLibrary.has(t.flowId)) {
-                                const params = t.params ?? {};
-                                matched = {
-                                    flowId: t.flowId,
-                                    params: Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v ?? "")])),
-                                };
-                                intentSource = "motivation_rag";
+                    chatInProgressByWs.set(ws, true);
+                    if (config.eventBus?.enabled === true) {
+                        const correlationId = createCorrelationId();
+                        pendingStreamByCorrelationId.set(correlationId, { ws, id });
+                        const request = {
+                            correlationId,
+                            source: "gateway_ws",
+                            message,
+                            sessionId,
+                            sessionType: session.sessionType,
+                            workspace,
+                            teamId: typeof params.teamId === "string" ? params.teamId : undefined,
+                            privacy: session.sessionFlags?.privacy,
+                            sessionSnapshot: {
+                                messages: session.messages,
+                                sessionGoal: session.sessionGoal,
+                                sessionSummary: session.sessionSummary,
+                                sessionType: session.sessionType,
+                                blackboard: session.blackboard,
+                            },
+                            sessionGrantedScopes: session.grantedScopes?.length ? session.grantedScopes : undefined,
+                            ts: new Date().toISOString(),
+                        };
+                        const timeoutMs = config.eventBus.responseTimeoutMs ?? 300_000;
+                        requestResponse(request, { timeoutMs })
+                            .then((response) => {
+                            if (response.messages)
+                                session.messages = response.messages;
+                            if (response.sessionGoal !== undefined)
+                                session.sessionGoal = response.sessionGoal;
+                            if (response.sessionSummary !== undefined)
+                                session.sessionSummary = response.sessionSummary;
+                            if (response.blackboard)
+                                session.blackboard = response.blackboard;
+                            if (!session.sessionFlags?.privacy) {
+                                writeSnapshot(workspace, sessionId, {
+                                    messages: session.messages,
+                                    sessionGoal: session.sessionGoal,
+                                    sessionSummary: session.sessionSummary,
+                                    sessionType: session.sessionType,
+                                }).catch((e) => console.error("[rzeclaw] snapshot write error:", e));
                             }
-                        }
-                        if (!matched) {
-                            matched = matchFlow(message, {
-                                routes: config.flows.routes,
-                                flowLibrary,
-                                successRates,
-                            });
-                            if (matched)
-                                intentSource = "rule";
-                        }
-                        if (!matched && isLocalIntentClassifierAvailable(config)) {
-                            const icResult = await callIntentClassifier(config, message, new Set(flowLibrary.keys()));
-                            if (icResult.ok && icResult.router.state === "ROUTE_TO_LOCAL_FLOW" && icResult.router.flowId) {
-                                const threshold = config.localModel.modes.intentClassifier.confidenceThreshold ?? 0.7;
-                                if (icResult.router.confidence >= threshold && flowLibrary.has(icResult.router.flowId)) {
-                                    const params = icResult.router.params ?? {};
-                                    matched = {
-                                        flowId: icResult.router.flowId,
-                                        params: Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v ?? "")])),
-                                    };
-                                    intentSource = "intent_classifier";
-                                }
+                            if (response.error) {
+                                sendError(response.error);
                             }
-                        }
-                        session.sessionState = matched ? "Local_Intercept" : "Deep_Reasoning";
-                        if (!matched && shouldTryLLMGenerateFlow(config, message, false)) {
-                            const list = await listFlows(workspace, config.flows.libraryPath);
-                            const existingFlowIds = list.map((e) => e.flowId);
-                            const gen = await runLLMGenerateFlow({
-                                config,
-                                workspace,
-                                libraryPath: config.flows.libraryPath,
-                                userMessage: message,
-                                existingFlowIds,
-                            });
-                            if (gen.success) {
-                                const content = `已根据您的描述创建流程「${gen.flowId}」。建议在配置的 flows.routes 中添加：{ "hint": "${gen.hint}", "flowId": "${gen.flowId}" }，即可通过类似「${gen.hint}」触发该流程。`;
-                                const messages = [
-                                    ...session.messages,
-                                    { role: "user", content: message },
-                                    { role: "assistant", content },
-                                ];
-                                session.messages = messages;
-                                session.sessionState = "Idle";
-                                send({ content, generatedFlowId: gen.flowId, suggestedRoute: { hint: gen.hint, flowId: gen.flowId } });
-                                return;
-                            }
-                        }
-                        if (matched) {
-                            session.sessionState = "Executing_Task";
-                            const flow = flowLibrary.get(matched.flowId);
-                            if (flow) {
-                                const flowStart = Date.now();
-                                const baseTools = await getMergedTools(config, workspace);
-                                const blackboard = session.blackboard ?? {};
-                                const writeSlotTool = {
-                                    name: "write_slot",
-                                    description: "Write a value to the session blackboard (slot). Used by flows to pass data to the agent.",
-                                    inputSchema: {
-                                        type: "object",
-                                        properties: { key: { type: "string", description: "Slot name" }, value: { type: "string", description: "Slot value" } },
-                                        required: ["key", "value"],
-                                    },
-                                    handler: async (args) => {
-                                        const k = String(args.key ?? "");
-                                        const v = String(args.value ?? "");
-                                        if (k)
-                                            blackboard[k] = v;
-                                        return { ok: true, content: "OK" };
-                                    },
-                                };
-                                const tools = [...baseTools, writeSlotTool];
-                                const result = await executeFlow({
-                                    config,
-                                    workspace,
-                                    flowId: matched.flowId,
-                                    flow,
-                                    params: matched.params,
-                                    tools,
-                                    flowLibrary,
-                                    blackboard,
-                                    userMessage: message,
-                                    onLLMNode: async (opts) => {
-                                        try {
-                                            let contextSummary = opts.contextSummary ?? "";
-                                            const extColl = flow.meta?.externalCollections;
-                                            if (extColl?.length) {
-                                                const rag = await getRagContextForFlow(config, workspace, extColl, opts.message ?? message, 3);
-                                                if (rag)
-                                                    contextSummary = rag + "\n" + contextSummary;
-                                            }
-                                            const content = await singleTurnLLM(config, opts.message, contextSummary);
-                                            return { content, success: true };
-                                        }
-                                        catch (e) {
-                                            return {
-                                                content: e instanceof Error ? e.message : String(e),
-                                                success: false,
-                                            };
-                                        }
-                                    },
-                                });
-                                const content = result.content;
-                                const libPath = config.flows.libraryPath;
-                                await appendOutcome(workspace, libPath, {
-                                    flowId: matched.flowId,
-                                    paramsSummary: JSON.stringify(matched.params).slice(0, 200),
-                                    success: result.success,
-                                    ts: new Date().toISOString(),
-                                });
-                                await updateFlowMetaAfterRun(workspace, libPath, matched.flowId, result.success);
-                                await performFailureReplacementAfterRun(workspace, libPath, matched.flowId, config);
-                                if (config.retrospective?.enabled) {
-                                    void appendTelemetry(workspace, {
-                                        ts: new Date().toISOString(),
-                                        type: "flow_end",
-                                        sessionId,
-                                        flowId: matched.flowId,
-                                        success: result.success,
-                                        durationMs: Date.now() - flowStart,
-                                        intentSource,
-                                    });
-                                }
-                                let evolutionSuggestionFlow = false;
-                                if (config.evolution?.insertTree?.enabled && config.flows?.libraryPath) {
-                                    const canSuggest = await canSuggestEvolution(config, workspace);
-                                    if (canSuggest) {
-                                        if (config.evolution.insertTree.requireUserConfirmation) {
-                                            evolutionSuggestionFlow = true;
-                                        }
-                                        else if (config.evolution.insertTree.autoRun) {
-                                            const ctx = await assembleEvolutionContextFromWorkspace(workspace, {
-                                                sessionSummary: session.sessionSummary,
-                                                config,
-                                                libraryPath: config.flows.libraryPath,
-                                                lastN: 30,
-                                            });
-                                            if (ctx.toolOps.length > 0) {
-                                                void runEvolutionInsertTree({
-                                                    config,
-                                                    workspace,
-                                                    libraryPath: config.flows.libraryPath,
-                                                    context: ctx,
-                                                    sessionId,
-                                                });
-                                            }
-                                        }
-                                    }
-                                }
-                                const messages = [
-                                    ...session.messages,
-                                    { role: "user", content: message },
-                                    { role: "assistant", content },
-                                ];
-                                session.messages = messages;
-                                if (!session.sessionFlags?.privacy) {
-                                    await writeSnapshot(workspace, sessionId, {
-                                        messages: session.messages,
-                                        sessionGoal: session.sessionGoal,
-                                        sessionSummary: session.sessionSummary,
-                                        sessionType: session.sessionType,
-                                    });
-                                }
-                                if (config.memory?.enabled && messages.length >= 2 && !session.sessionFlags?.privacy) {
-                                    const store = createStore(workspace, config.memory.workspaceId);
-                                    const { summary, factCount } = await flushToL1({
-                                        config,
-                                        sessionId,
-                                        messages,
-                                        store,
-                                        workspaceId: config.memory.workspaceId ?? workspace,
-                                        taskHint: extractTaskHint(message),
-                                    });
-                                    await writeSessionSummaryFile({
-                                        workspaceDir: workspace,
-                                        sessionId,
-                                        summary,
-                                        factCount,
-                                    });
-                                    const workspaceId = config.memory.workspaceId ?? workspace;
-                                    await promoteL1ToL2(store, {
-                                        workspace_id: workspaceId,
-                                        created_after: new Date(Date.now() - 120_000).toISOString(),
-                                        limit: 50,
-                                    });
-                                    if (typeof config.memory.coldAfterDays === "number" &&
-                                        config.memory.coldAfterDays > 0) {
-                                        await archiveCold(workspace, config.memory.workspaceId, config.memory.coldAfterDays);
-                                    }
-                                    await writePromptSuggestions({
-                                        config,
-                                        workspaceDir: workspace,
-                                        sessionId,
-                                        summary,
-                                    });
-                                }
-                                session.sessionState = "Idle";
+                            else {
+                                if (response.sourceAgentId)
+                                    session.lastRespondingBlueprintId = response.sourceAgentId;
                                 send({
-                                    content,
-                                    ...(evolutionSuggestionFlow ? { evolutionSuggestion: true } : {}),
+                                    content: response.content,
+                                    ...(response.citedMemoryIds?.length ? { citedMemoryIds: response.citedMemoryIds } : {}),
+                                    ...(response.evolutionSuggestion ? { evolutionSuggestion: true } : {}),
+                                    ...(response.generatedFlowId ? { generatedFlowId: response.generatedFlowId, suggestedRoute: response.suggestedRoute } : {}),
                                 });
-                                return;
                             }
-                        }
-                        if (session.sessionState === "Executing_Task")
-                            session.sessionState = "Deep_Reasoning";
-                    }
-                    else {
-                        session.sessionState = "Deep_Reasoning";
-                    }
-                    if (!isLlmReady(config)) {
-                        const noRouteMsg = "未匹配到任何流程，且当前未配置可用的大模型（主 LLM），无法进行开放域对话。请配置 config.llm，或添加 flows.routes / 动机 RAG / 本地意图分类以匹配流程。";
-                        send({ content: noRouteMsg });
+                        })
+                            .catch((err) => {
+                            sendError(err instanceof Error ? err.message : String(err));
+                        })
+                            .finally(() => {
+                            pendingStreamByCorrelationId.delete(correlationId);
+                            chatInProgressByWs.set(ws, false);
+                        });
                         return;
                     }
-                    const agentStart = Date.now();
-                    const { content, messages, citedMemoryIds } = await runAgentLoop({
-                        config: { ...config, workspace },
-                        userMessage: message,
-                        sessionMessages: session.messages,
-                        sessionId,
-                        sessionGoal: session.sessionGoal,
-                        sessionSummary: session.sessionSummary,
-                        sessionType: session.sessionType,
-                        teamId: typeof params.teamId === "string" ? params.teamId : undefined,
-                        sessionFlags: session.sessionFlags,
-                        blackboard: session.blackboard,
-                        onText: (chunk) => {
-                            try {
-                                ws.send(JSON.stringify({ id, stream: "text", chunk }));
+                    try {
+                        if (config.flows?.enabled === true && config.flows.routes?.length && config.flows.libraryPath) {
+                            const flowLibrary = await getFlowLibrary(workspace, config.flows.libraryPath);
+                            const successRates = await getFlowSuccessRates(workspace, config.flows.libraryPath);
+                            let matched = null;
+                            let intentSource = "none";
+                            if (config.vectorEmbedding?.enabled && config.vectorEmbedding.collections?.motivation?.enabled) {
+                                const motivationHits = await ragSearch(config, workspace, "motivation", message, 1);
+                                const threshold = config.vectorEmbedding.motivationThreshold ?? 0.75;
+                                const hit = motivationHits[0];
+                                const t = hit?.metadata?.translated;
+                                const conf = hit?.metadata?.confidence_default ?? hit?.score ?? 0;
+                                if (hit && (hit.score >= threshold || conf >= threshold) && t?.state === "ROUTE_TO_LOCAL_FLOW" && t.flowId && flowLibrary.has(t.flowId)) {
+                                    const params = t.params ?? {};
+                                    matched = {
+                                        flowId: t.flowId,
+                                        params: Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v ?? "")])),
+                                    };
+                                    intentSource = "motivation_rag";
+                                }
                             }
-                            catch (_) { }
-                        },
-                    });
-                    session.sessionState = "Idle";
-                    session.messages = messages;
-                    if (config.retrospective?.enabled) {
-                        void appendTelemetry(workspace, {
-                            ts: new Date().toISOString(),
-                            type: "agent_turn",
-                            sessionId,
-                            durationMs: Date.now() - agentStart,
-                            intentSource: "none",
-                        });
-                    }
-                    if (!session.sessionFlags?.privacy) {
-                        await writeSnapshot(workspace, sessionId, {
-                            messages: session.messages,
-                            sessionGoal: session.sessionGoal,
-                            sessionSummary: session.sessionSummary,
-                            sessionType: session.sessionType,
-                        });
-                    }
-                    if (config.memory?.enabled && messages.length >= 2 && !session.sessionFlags?.privacy) {
-                        const store = createStore(workspace, config.memory.workspaceId);
-                        const { summary, factCount } = await flushToL1({
-                            config,
-                            sessionId,
-                            messages,
-                            store,
-                            workspaceId: config.memory.workspaceId ?? workspace,
-                            taskHint: extractTaskHint(message),
-                        });
-                        await writeSessionSummaryFile({
-                            workspaceDir: workspace,
-                            sessionId,
-                            summary,
-                            factCount,
-                        });
-                        const workspaceId = config.memory.workspaceId ?? workspace;
-                        await promoteL1ToL2(store, {
-                            workspace_id: workspaceId,
-                            created_after: new Date(Date.now() - 120_000).toISOString(),
-                            limit: 50,
-                        });
-                        if (typeof config.memory.coldAfterDays === "number" &&
-                            config.memory.coldAfterDays > 0) {
-                            await archiveCold(workspace, config.memory.workspaceId, config.memory.coldAfterDays);
-                        }
-                        await writePromptSuggestions({
-                            config,
-                            workspaceDir: workspace,
-                            sessionId,
-                            summary,
-                        });
-                    }
-                    let evolutionSuggestionAgent = false;
-                    if (config.evolution?.insertTree?.enabled && config.flows?.libraryPath) {
-                        const canSuggest = await canSuggestEvolution(config, workspace);
-                        if (canSuggest) {
-                            if (config.evolution.insertTree.requireUserConfirmation) {
-                                evolutionSuggestionAgent = true;
-                            }
-                            else if (config.evolution.insertTree.autoRun) {
-                                const ctx = await assembleEvolutionContextFromWorkspace(workspace, {
-                                    sessionSummary: session.sessionSummary,
-                                    config,
-                                    libraryPath: config.flows.libraryPath,
-                                    lastN: 30,
+                            if (!matched) {
+                                matched = matchFlow(message, {
+                                    routes: config.flows.routes,
+                                    flowLibrary,
+                                    successRates,
                                 });
-                                if (ctx.toolOps.length > 0) {
-                                    void runEvolutionInsertTree({
+                                if (matched)
+                                    intentSource = "rule";
+                            }
+                            if (!matched && isLocalIntentClassifierAvailable(config)) {
+                                const icResult = await callIntentClassifier(config, message, new Set(flowLibrary.keys()));
+                                if (icResult.ok && icResult.router.state === "ROUTE_TO_LOCAL_FLOW" && icResult.router.flowId) {
+                                    const threshold = config.localModel.modes.intentClassifier.confidenceThreshold ?? 0.7;
+                                    if (icResult.router.confidence >= threshold && flowLibrary.has(icResult.router.flowId)) {
+                                        const params = icResult.router.params ?? {};
+                                        matched = {
+                                            flowId: icResult.router.flowId,
+                                            params: Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v ?? "")])),
+                                        };
+                                        intentSource = "intent_classifier";
+                                    }
+                                }
+                            }
+                            session.sessionState = matched ? "Local_Intercept" : "Deep_Reasoning";
+                            if (!matched && shouldTryLLMGenerateFlow(config, message, false)) {
+                                const list = await listFlows(workspace, config.flows.libraryPath);
+                                const existingFlowIds = list.map((e) => e.flowId);
+                                const gen = await runLLMGenerateFlow({
+                                    config,
+                                    workspace,
+                                    libraryPath: config.flows.libraryPath,
+                                    userMessage: message,
+                                    existingFlowIds,
+                                });
+                                if (gen.success) {
+                                    const content = `已根据您的描述创建流程「${gen.flowId}」。建议在配置的 flows.routes 中添加：{ "hint": "${gen.hint}", "flowId": "${gen.flowId}" }，即可通过类似「${gen.hint}」触发该流程。`;
+                                    const messages = [
+                                        ...session.messages,
+                                        { role: "user", content: message },
+                                        { role: "assistant", content },
+                                    ];
+                                    session.messages = messages;
+                                    session.sessionState = "Idle";
+                                    send({ content, generatedFlowId: gen.flowId, suggestedRoute: { hint: gen.hint, flowId: gen.flowId } });
+                                    return;
+                                }
+                            }
+                            if (matched) {
+                                session.sessionState = "Executing_Task";
+                                const flow = flowLibrary.get(matched.flowId);
+                                if (flow) {
+                                    const flowStart = Date.now();
+                                    const baseTools = await getMergedTools(config, workspace);
+                                    const blackboard = session.blackboard ?? {};
+                                    const writeSlotTool = {
+                                        name: "write_slot",
+                                        description: "Write a value to the session blackboard (slot). Used by flows to pass data to the agent.",
+                                        inputSchema: {
+                                            type: "object",
+                                            properties: { key: { type: "string", description: "Slot name" }, value: { type: "string", description: "Slot value" } },
+                                            required: ["key", "value"],
+                                        },
+                                        handler: async (args) => {
+                                            const k = String(args.key ?? "");
+                                            const v = String(args.value ?? "");
+                                            if (k)
+                                                blackboard[k] = v;
+                                            return { ok: true, content: "OK" };
+                                        },
+                                    };
+                                    const tools = [...baseTools, writeSlotTool];
+                                    const result = await executeFlow({
                                         config,
                                         workspace,
-                                        libraryPath: config.flows.libraryPath,
-                                        context: ctx,
+                                        flowId: matched.flowId,
+                                        flow,
+                                        params: matched.params,
+                                        tools,
+                                        flowLibrary,
+                                        blackboard,
+                                        userMessage: message,
                                         sessionId,
+                                        sessionGrantedScopes: session.grantedScopes?.length ? session.grantedScopes : undefined,
+                                        onLLMNode: async (opts) => {
+                                            try {
+                                                let contextSummary = opts.contextSummary ?? "";
+                                                const extColl = flow.meta?.externalCollections;
+                                                if (extColl?.length) {
+                                                    const rag = await getRagContextForFlow(config, workspace, extColl, opts.message ?? message, 3);
+                                                    if (rag)
+                                                        contextSummary = rag + "\n" + contextSummary;
+                                                }
+                                                const content = await singleTurnLLM(config, opts.message, contextSummary);
+                                                return { content, success: true };
+                                            }
+                                            catch (e) {
+                                                return {
+                                                    content: e instanceof Error ? e.message : String(e),
+                                                    success: false,
+                                                };
+                                            }
+                                        },
                                     });
+                                    const content = result.content;
+                                    const libPath = config.flows.libraryPath;
+                                    await appendOutcome(workspace, libPath, {
+                                        flowId: matched.flowId,
+                                        paramsSummary: JSON.stringify(matched.params).slice(0, 200),
+                                        success: result.success,
+                                        ts: new Date().toISOString(),
+                                    });
+                                    await updateFlowMetaAfterRun(workspace, libPath, matched.flowId, result.success);
+                                    await performFailureReplacementAfterRun(workspace, libPath, matched.flowId, config);
+                                    if (config.retrospective?.enabled) {
+                                        void appendTelemetry(workspace, {
+                                            ts: new Date().toISOString(),
+                                            type: "flow_end",
+                                            sessionId,
+                                            flowId: matched.flowId,
+                                            success: result.success,
+                                            durationMs: Date.now() - flowStart,
+                                            intentSource,
+                                        });
+                                    }
+                                    let evolutionSuggestionFlow = false;
+                                    if (config.evolution?.insertTree?.enabled && config.flows?.libraryPath) {
+                                        const canSuggest = await canSuggestEvolution(config, workspace);
+                                        if (canSuggest) {
+                                            if (config.evolution.insertTree.requireUserConfirmation) {
+                                                evolutionSuggestionFlow = true;
+                                            }
+                                            else if (config.evolution.insertTree.autoRun) {
+                                                const ctx = await assembleEvolutionContextFromWorkspace(workspace, {
+                                                    sessionSummary: session.sessionSummary,
+                                                    config,
+                                                    libraryPath: config.flows.libraryPath,
+                                                    lastN: 30,
+                                                });
+                                                if (ctx.toolOps.length > 0) {
+                                                    void runEvolutionInsertTree({
+                                                        config,
+                                                        workspace,
+                                                        libraryPath: config.flows.libraryPath,
+                                                        context: ctx,
+                                                        sessionId,
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                    const messages = [
+                                        ...session.messages,
+                                        { role: "user", content: message },
+                                        { role: "assistant", content },
+                                    ];
+                                    session.messages = messages;
+                                    if (!session.sessionFlags?.privacy) {
+                                        await writeSnapshot(workspace, sessionId, {
+                                            messages: session.messages,
+                                            sessionGoal: session.sessionGoal,
+                                            sessionSummary: session.sessionSummary,
+                                            sessionType: session.sessionType,
+                                        });
+                                    }
+                                    if (config.memory?.enabled && messages.length >= 2 && !session.sessionFlags?.privacy) {
+                                        const store = createStore(workspace, config.memory.workspaceId);
+                                        const { summary, factCount } = await flushToL1({
+                                            config,
+                                            sessionId,
+                                            messages,
+                                            store,
+                                            workspaceId: config.memory.workspaceId ?? workspace,
+                                            taskHint: extractTaskHint(message),
+                                        });
+                                        await writeSessionSummaryFile({
+                                            workspaceDir: workspace,
+                                            sessionId,
+                                            summary,
+                                            factCount,
+                                        });
+                                        if (config.memory?.rollingLedger?.enabled && summary) {
+                                            void appendToTodayBuffer({ workspaceDir: workspace, sessionId, content: summary, source: "flushToL1" });
+                                        }
+                                        const workspaceId = config.memory.workspaceId ?? workspace;
+                                        await promoteL1ToL2(store, {
+                                            workspace_id: workspaceId,
+                                            created_after: new Date(Date.now() - 120_000).toISOString(),
+                                            limit: 50,
+                                        });
+                                        if (typeof config.memory.coldAfterDays === "number" &&
+                                            config.memory.coldAfterDays > 0) {
+                                            await archiveCold(workspace, config.memory.workspaceId, config.memory.coldAfterDays);
+                                        }
+                                        if (config.security?.privacyIsolationRetentionDays != null && config.security.privacyIsolationRetentionDays > 0) {
+                                            await cleanupPrivacyIsolated(workspace, config.security.privacyIsolationRetentionDays);
+                                        }
+                                        await writePromptSuggestions({
+                                            config,
+                                            workspaceDir: workspace,
+                                            sessionId,
+                                            summary,
+                                        });
+                                    }
+                                    else if (config.memory?.enabled &&
+                                        messages.length >= 2 &&
+                                        session.sessionFlags?.privacy &&
+                                        typeof config.security?.privacyIsolationRetentionDays === "number") {
+                                        const store = createPrivacyIsolatedStore(workspace, sessionId);
+                                        await flushToL1({
+                                            config,
+                                            sessionId,
+                                            messages,
+                                            store,
+                                            workspaceId: config.memory.workspaceId ?? workspace,
+                                            taskHint: extractTaskHint(message),
+                                            skipAuditLog: true,
+                                        });
+                                    }
+                                    session.sessionState = "Idle";
+                                    send({
+                                        content,
+                                        ...(evolutionSuggestionFlow ? { evolutionSuggestion: true } : {}),
+                                    });
+                                    return;
+                                }
+                            }
+                            if (session.sessionState === "Executing_Task")
+                                session.sessionState = "Deep_Reasoning";
+                        }
+                        else {
+                            session.sessionState = "Deep_Reasoning";
+                        }
+                        if (!isLlmReady(config)) {
+                            const noRouteMsg = "未匹配到任何流程，且当前未配置可用的大模型（主 LLM），无法进行开放域对话。请配置 config.llm，或添加 flows.routes / 动机 RAG / 本地意图分类以匹配流程。";
+                            send({ content: noRouteMsg });
+                            return;
+                        }
+                        const agentStart = Date.now();
+                        const rollingContext = config.memory?.rollingLedger?.enabled && !session.sessionFlags?.privacy
+                            ? await getRollingContextForPrompt(workspace)
+                            : undefined;
+                        const { content, messages, citedMemoryIds } = await runAgentLoop({
+                            config: { ...config, workspace },
+                            userMessage: message,
+                            sessionMessages: session.messages,
+                            sessionId,
+                            sessionGoal: session.sessionGoal,
+                            sessionSummary: session.sessionSummary,
+                            rollingContext,
+                            sessionType: session.sessionType,
+                            teamId: typeof params.teamId === "string" ? params.teamId : undefined,
+                            sessionFlags: session.sessionFlags,
+                            sessionGrantedScopes: session.grantedScopes?.length ? session.grantedScopes : undefined,
+                            blackboard: session.blackboard,
+                            onText: (chunk) => {
+                                try {
+                                    ws.send(JSON.stringify({ id, stream: "text", chunk }));
+                                }
+                                catch (_) { }
+                            },
+                        });
+                        session.sessionState = "Idle";
+                        session.messages = messages;
+                        if (config.retrospective?.enabled) {
+                            void appendTelemetry(workspace, {
+                                ts: new Date().toISOString(),
+                                type: "agent_turn",
+                                sessionId,
+                                durationMs: Date.now() - agentStart,
+                                intentSource: "none",
+                            });
+                        }
+                        if (!session.sessionFlags?.privacy) {
+                            await writeSnapshot(workspace, sessionId, {
+                                messages: session.messages,
+                                sessionGoal: session.sessionGoal,
+                                sessionSummary: session.sessionSummary,
+                                sessionType: session.sessionType,
+                            });
+                        }
+                        if (config.memory?.enabled && messages.length >= 2 && !session.sessionFlags?.privacy) {
+                            const store = createStore(workspace, config.memory.workspaceId);
+                            const { summary, factCount } = await flushToL1({
+                                config,
+                                sessionId,
+                                messages,
+                                store,
+                                workspaceId: config.memory.workspaceId ?? workspace,
+                                taskHint: extractTaskHint(message),
+                            });
+                            await writeSessionSummaryFile({
+                                workspaceDir: workspace,
+                                sessionId,
+                                summary,
+                                factCount,
+                            });
+                            if (config.memory?.rollingLedger?.enabled && summary) {
+                                void appendToTodayBuffer({ workspaceDir: workspace, sessionId, content: summary, source: "flushToL1" });
+                            }
+                            const workspaceId = config.memory.workspaceId ?? workspace;
+                            await promoteL1ToL2(store, {
+                                workspace_id: workspaceId,
+                                created_after: new Date(Date.now() - 120_000).toISOString(),
+                                limit: 50,
+                            });
+                            if (typeof config.memory.coldAfterDays === "number" &&
+                                config.memory.coldAfterDays > 0) {
+                                await archiveCold(workspace, config.memory.workspaceId, config.memory.coldAfterDays);
+                            }
+                            if (config.security?.privacyIsolationRetentionDays != null && config.security.privacyIsolationRetentionDays > 0) {
+                                await cleanupPrivacyIsolated(workspace, config.security.privacyIsolationRetentionDays);
+                            }
+                            await writePromptSuggestions({
+                                config,
+                                workspaceDir: workspace,
+                                sessionId,
+                                summary,
+                            });
+                        }
+                        else if (config.memory?.enabled &&
+                            messages.length >= 2 &&
+                            session.sessionFlags?.privacy &&
+                            typeof config.security?.privacyIsolationRetentionDays === "number") {
+                            const store = createPrivacyIsolatedStore(workspace, sessionId);
+                            await flushToL1({
+                                config,
+                                sessionId,
+                                messages,
+                                store,
+                                workspaceId: config.memory.workspaceId ?? workspace,
+                                taskHint: extractTaskHint(message),
+                                skipAuditLog: true,
+                            });
+                        }
+                        let evolutionSuggestionAgent = false;
+                        if (config.evolution?.insertTree?.enabled && config.flows?.libraryPath) {
+                            const canSuggest = await canSuggestEvolution(config, workspace);
+                            if (canSuggest) {
+                                if (config.evolution.insertTree.requireUserConfirmation) {
+                                    evolutionSuggestionAgent = true;
+                                }
+                                else if (config.evolution.insertTree.autoRun) {
+                                    const ctx = await assembleEvolutionContextFromWorkspace(workspace, {
+                                        sessionSummary: session.sessionSummary,
+                                        config,
+                                        libraryPath: config.flows.libraryPath,
+                                        lastN: 30,
+                                    });
+                                    if (ctx.toolOps.length > 0) {
+                                        void runEvolutionInsertTree({
+                                            config,
+                                            workspace,
+                                            libraryPath: config.flows.libraryPath,
+                                            context: ctx,
+                                            sessionId,
+                                        });
+                                    }
                                 }
                             }
                         }
+                        send({
+                            content,
+                            ...(citedMemoryIds && citedMemoryIds.length > 0 ? { citedMemoryIds } : {}),
+                            ...(evolutionSuggestionAgent ? { evolutionSuggestion: true } : {}),
+                        });
+                        return;
                     }
-                    send({
-                        content,
-                        ...(citedMemoryIds && citedMemoryIds.length > 0 ? { citedMemoryIds } : {}),
-                        ...(evolutionSuggestionAgent ? { evolutionSuggestion: true } : {}),
-                    });
-                    return;
+                    finally {
+                        chatInProgressByWs.set(ws, false);
+                    }
                 }
                 if (method === "tools.call") {
                     const name = params.name;

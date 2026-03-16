@@ -11,6 +11,8 @@ export declare function flushToL1(params: {
     store: IMemoryStore;
     workspaceId?: string;
     taskHint?: string;
+    /** WO-1511: 隐私隔离写入时不写主 audit，避免泄露 */
+    skipAuditLog?: boolean;
 }): Promise<{
     summary: string;
     factCount: number;

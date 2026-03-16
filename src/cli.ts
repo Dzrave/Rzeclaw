@@ -2,8 +2,9 @@ import { Command } from "commander";
 import { loadConfig, isLlmReady } from "./config.js";
 import { createGatewayServer } from "./gateway/server.js";
 import { runAgentLoop } from "./agent/loop.js";
-import { createStore } from "./memory/store-jsonl.js";
+import { createStore, createPrivacyIsolatedStore } from "./memory/store-jsonl.js";
 import { flushToL1 } from "./memory/write-pipeline.js";
+import { cleanupPrivacyIsolatedForSession } from "./memory/privacy-isolation.js";
 import { writeSessionSummaryFile } from "./memory/session-summary-file.js";
 import { extractTaskHint } from "./memory/task-hint.js";
 import { promoteL1ToL2 } from "./memory/l2.js";
@@ -112,6 +113,26 @@ program
         sessionId: finalSessionId,
         summary,
       });
+    } else if (
+      config.memory?.enabled &&
+      messages.length >= 2 &&
+      privacyMode &&
+      typeof config.security?.privacyIsolationRetentionDays === "number"
+    ) {
+      const store = createPrivacyIsolatedStore(workspace, finalSessionId);
+      const lastUserMessage = typeof message === "string" ? message : "";
+      await flushToL1({
+        config,
+        sessionId: finalSessionId,
+        messages,
+        store,
+        workspaceId: config.memory.workspaceId ?? workspace,
+        taskHint: extractTaskHint(lastUserMessage),
+        skipAuditLog: true,
+      });
+      if (config.security.privacyIsolationRetentionDays === 0) {
+        await cleanupPrivacyIsolatedForSession(workspace, finalSessionId);
+      }
     }
     if (!content && !process.stdout.isTTY) {
       console.log(content);
