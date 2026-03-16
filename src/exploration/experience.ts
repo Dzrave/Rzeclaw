@@ -1,11 +1,14 @@
 /**
- * Phase 16 WO-1640/1641/1642/1643: 探索经验存储与复用（文件型，无向量）
+ * Phase 16 WO-1640/1641/1642/1643: 探索经验存储与复用
  * 可读存储：workspace/.rzeclaw/rag/endogenous/exploration_experience.jsonl
+ * 向量索引（可选）：config.vectorEmbedding.collections[experience.collection]（推荐 "exploration_experience"）
  */
 
 import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import type { RzeclawConfig } from "../config.js";
+import { ingestToCollection, search } from "../rag/index.js";
 import type { PlanVariant } from "./types.js";
 
 /** WO-1640: 探索经验条目 schema */
@@ -31,8 +34,29 @@ const ENDOGENOUS_DIR = "endogenous";
 const FILENAME = "exploration_experience.jsonl";
 const MAX_RECENT = 100;
 
+/** 按 workspace 串行化读-改-写，避免并发重写同一文件导致覆盖 */
+const writeLockByWorkspace = new Map<string, Promise<void>>();
+
 function getStoragePath(workspace: string): string {
   return join(workspace, SUBDIR, RAG_DIR, ENDOGENOUS_DIR, FILENAME);
+}
+
+async function withWriteLock(workspace: string, fn: () => void): Promise<void> {
+  const prev = writeLockByWorkspace.get(workspace) ?? Promise.resolve();
+  let resolve: () => void;
+  const next = new Promise<void>((r) => {
+    resolve = r;
+  });
+  writeLockByWorkspace.set(workspace, next);
+  await prev;
+  try {
+    fn();
+  } finally {
+    resolve!();
+    if (writeLockByWorkspace.get(workspace) === next) {
+      writeLockByWorkspace.delete(workspace);
+    }
+  }
 }
 
 function ensureDir(filePath: string): void {
@@ -80,8 +104,24 @@ export function findBestMatch(
   return best;
 }
 
-/** WO-1641: 写入新条目 */
-export function writeEntry(workspace: string, entry: Omit<ExplorationExperienceEntry, "id" | "created_at" | "reuse_count">): ExplorationExperienceEntry {
+/** 将 exploration.experience.collection 解析为集合名，默认 exploration_experience */
+function getExperienceCollection(config: RzeclawConfig): string | null {
+  const exp = config.exploration?.experience;
+  if (!exp?.enabled) return null;
+  const coll = exp.collection && exp.collection.trim().length > 0 ? exp.collection.trim() : "exploration_experience";
+  return coll;
+}
+
+/** 供向量索引使用的可检索文本：目前用 task_signature（可后续扩展 intent 等） */
+function entryToEmbedText(e: ExplorationExperienceEntry): string {
+  return (e.task_signature ?? "").trim() || e.id;
+}
+
+/** WO-1641: 写入新条目（文件为真源）——同步版本，供测试与无向量场景使用 */
+export function writeEntry(
+  workspace: string,
+  entry: Omit<ExplorationExperienceEntry, "id" | "created_at" | "reuse_count">
+): ExplorationExperienceEntry {
   const full: ExplorationExperienceEntry = {
     ...entry,
     id: randomUUID(),
@@ -94,7 +134,75 @@ export function writeEntry(workspace: string, entry: Omit<ExplorationExperienceE
   return full;
 }
 
-/** 更新条目的 reuse_count 与 last_reused_at（按 id 重写该行或整文件） */
+/** 写入条目并（若已启用）更新向量索引；仅探索层内部使用 */
+export async function writeEntryWithVector(
+  config: RzeclawConfig,
+  workspace: string,
+  entry: Omit<ExplorationExperienceEntry, "id" | "created_at" | "reuse_count">
+): Promise<ExplorationExperienceEntry> {
+  const full = writeEntry(workspace, entry);
+  const coll = getExperienceCollection(config);
+  if (coll && config.vectorEmbedding?.enabled) {
+    try {
+      await ingestToCollection(config, workspace, coll, [
+        {
+          id: full.id,
+          text: entryToEmbedText(full),
+          metadata: {
+            snapshot_digest: full.snapshot_digest,
+            task_signature: full.task_signature,
+          },
+        },
+      ]);
+    } catch {
+      // 向量索引失败不影响主流程
+    }
+  }
+  return full;
+}
+
+/**
+ * 使用向量检索查找最佳探索经验条目。
+ * 要求：config.vectorEmbedding 启用且 exploration.experience.collection 已启用对应集合。
+ */
+export async function findBestMatchVector(
+  config: RzeclawConfig,
+  workspace: string,
+  message: string,
+  reuseThreshold: number,
+  requireSnapshotMatch: boolean,
+  currentSnapshotDigest?: string
+): Promise<{ entry: ExplorationExperienceEntry; score: number } | null> {
+  const coll = getExperienceCollection(config);
+  if (!coll || !config.vectorEmbedding?.enabled) return null;
+  const query = (message ?? "").trim();
+  if (!query) return null;
+  const topK = config.exploration?.experience?.maxEntries && config.exploration.experience.maxEntries > 0
+    ? config.exploration.experience.maxEntries
+    : 10;
+  try {
+    const hits = await search(config, workspace, coll, query, topK);
+    let best: { entry: ExplorationExperienceEntry; score: number } | null = null;
+    for (const h of hits) {
+      const score = typeof h.score === "number" ? h.score : 0;
+      if (score < reuseThreshold) continue;
+      if (requireSnapshotMatch && currentSnapshotDigest) {
+        const md = (h.metadata ?? {}) as { snapshot_digest?: string };
+        if (!md.snapshot_digest || md.snapshot_digest !== currentSnapshotDigest) continue;
+      }
+      const entry = getEntryById(workspace, h.id);
+      if (!entry) continue;
+      if (!best || score > best.score) {
+        best = { entry, score };
+      }
+    }
+    return best;
+  } catch {
+    return null;
+  }
+}
+
+/** 更新条目的 reuse_count 与 last_reused_at（按 id 重写该行或整文件）；并发安全：同一 workspace 串行化 */
 export function updateReuseCount(workspace: string, id: string): void {
   const path = getStoragePath(workspace);
   if (!existsSync(path)) return;
@@ -119,6 +227,11 @@ export function updateReuseCount(workspace: string, id: string): void {
     return line;
   });
   if (found) writeFileSync(path, updated.join("\n") + "\n", "utf-8");
+}
+
+/** 异步版本：带写锁，避免与 updateOutcome 等并发写同一文件 */
+export async function updateReuseCountAsync(workspace: string, id: string): Promise<void> {
+  await withWriteLock(workspace, () => updateReuseCount(workspace, id));
 }
 
 /** 按 id 查找条目（用于结果回写，WO-1644） */
@@ -171,6 +284,19 @@ export function updateOutcome(
   });
   if (found) writeFileSync(path, updated.join("\n") + "\n", "utf-8");
   return found;
+}
+
+/** 异步版本：带写锁，与 updateReuseCount 串行化 */
+export async function updateOutcomeAsync(
+  workspace: string,
+  id: string,
+  outcome: { success: boolean; tokenCount?: number }
+): Promise<boolean> {
+  let result = false;
+  await withWriteLock(workspace, () => {
+    result = updateOutcome(workspace, id, outcome);
+  });
+  return result;
 }
 
 /** WO-1655: 删除指定 id 的探索经验条目（复盘应用 exploration_trim 时调用） */

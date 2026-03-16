@@ -9,7 +9,13 @@ import { buildSnapshotContext } from "./snapshot.js";
 import { callPlanner } from "./planner.js";
 import { callCritic } from "./critic.js";
 import { compilePlanToMessage } from "./compile.js";
-import { listRecent, findBestMatch, writeEntry, updateReuseCount } from "./experience.js";
+import {
+  listRecent,
+  findBestMatch,
+  findBestMatchVector,
+  writeEntryWithVector,
+  updateReuseCountAsync,
+} from "./experience.js";
 import { appendTelemetry } from "../retrospective/telemetry.js";
 
 export { shouldSkipExploration, shouldEnterExploration } from "./gatekeeper.js";
@@ -40,7 +46,7 @@ export async function tryExploration(context: {
   workspace: string;
   sessionId: string;
   matched: { flowId: string; params: Record<string, string> } | null;
-  session?: { blackboard?: Record<string, string> };
+  session?: { blackboard?: Record<string, string>; sessionState?: string };
   flowLibrary?: Map<string, FlowDef> | null;
 }): Promise<
   | { useExploration: false }
@@ -82,18 +88,39 @@ export async function tryExploration(context: {
     const requireSnapshotMatch = exp?.requireSnapshotMatch === true;
 
     if (exp?.enabled) {
-      const recentLimit = exp.maxEntries && exp.maxEntries > 0 ? exp.maxEntries : 50;
-      const recent = listRecent(workspace, recentLimit);
-      const match = findBestMatch(message, recent, reuseThreshold);
-      if (match && (!requireSnapshotMatch || match.entry.snapshot_digest === snapshot.snapshot_digest)) {
+      // 优先使用向量检索（若已启用），否则退回到简单字符串匹配
+      let match: { entry: import("./experience.js").ExplorationExperienceEntry; score: number } | null = null;
+      match = await findBestMatchVector(
+        config,
+        workspace,
+        message,
+        reuseThreshold,
+        requireSnapshotMatch,
+        snapshot.snapshot_digest
+      );
+      if (!match) {
+        const recentLimit = exp.maxEntries && exp.maxEntries > 0 ? exp.maxEntries : 50;
+        const recent = listRecent(workspace, recentLimit);
+        match = findBestMatch(message, recent, reuseThreshold);
+        if (match && requireSnapshotMatch && snapshot.snapshot_digest) {
+          if (match.entry.snapshot_digest !== snapshot.snapshot_digest) {
+            match = null;
+          }
+        }
+      }
+      if (match) {
         const compiledMessage = compilePlanToMessage(match.entry.chosen_plan, message);
-        updateReuseCount(workspace, match.entry.id);
+        await updateReuseCountAsync(workspace, match.entry.id);
         if (context.config.retrospective?.enabled) {
           void appendTelemetry(workspace, {
             ts: new Date().toISOString(),
             type: "exploration_reuse",
             sessionId: context.sessionId,
-            payload: { correlationId: context.correlationId, explorationRecordId: match.entry.id, score: match.score },
+            payload: {
+              correlationId: context.correlationId,
+              explorationRecordId: match.entry.id,
+              score: match.score,
+            },
           });
         }
         return { useExploration: true, compiledMessage, explorationRecordId: match.entry.id };
@@ -116,12 +143,15 @@ export async function tryExploration(context: {
     }
 
     const criticResult = await callCritic(config, variants, message);
+    if (criticResult == null) {
+      return { useExploration: false };
+    }
     const chosen = variants.find((v) => v.planId === criticResult.chosenPlanId) ?? variants[0];
     const compiledMessage = compilePlanToMessage(chosen, message);
 
     let explorationRecordId: string | undefined;
     if (exp?.enabled) {
-      const written = writeEntry(workspace, {
+      const written = await writeEntryWithVector(config, workspace, {
         task_signature: message,
         chosen_plan: chosen,
         snapshot_digest: snapshot.snapshot_digest,

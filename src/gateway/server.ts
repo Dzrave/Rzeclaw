@@ -60,6 +60,8 @@ import {
 } from "../task-results/store.js";
 import { readLastNEntriesBySession } from "../observability/op-log.js";
 import { callIntentClassifier } from "../local-model/index.js";
+import { shouldSkipExploration, shouldEnterExploration, tryExploration } from "../exploration/index.js";
+import { updateOutcomeAsync as updateExplorationOutcome } from "../exploration/experience.js";
 import { ingestPaths } from "../knowledge/index.js";
 import { generateReport, writeSuggestionsFile } from "../diagnostic/index.js";
 import path from "node:path";
@@ -719,10 +721,12 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
           }
 
           try {
+          let matched: { flowId: string; params: Record<string, string> } | null = null;
+          let flowLibrary: Map<string, import("../flows/types.js").FlowDef> | null = null;
           if (config.flows?.enabled === true && config.flows.routes?.length && config.flows.libraryPath) {
-            const flowLibrary = await getFlowLibrary(workspace, config.flows.libraryPath);
+            flowLibrary = await getFlowLibrary(workspace, config.flows.libraryPath);
             const successRates = await getFlowSuccessRates(workspace, config.flows.libraryPath);
-            let matched: { flowId: string; params: Record<string, string> } | null = null;
+            matched = null;
             let intentSource: string = "none";
             if (config.vectorEmbedding?.enabled && config.vectorEmbedding.collections?.motivation?.enabled) {
               const motivationHits = await ragSearch(config, workspace, "motivation", message, 1);
@@ -984,14 +988,41 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
             send({ content: noRouteMsg });
             return;
           }
+          let messageToUse = message;
+          let explorationRecordIdForOutcome: string | undefined;
+          if (config.exploration?.enabled && !matched && !shouldSkipExploration(config, matched, undefined)) {
+            const enter = await shouldEnterExploration(config, message, { workspace });
+            if (enter) {
+              const exResult = await tryExploration({
+                config,
+                message,
+                correlationId: id,
+                workspace,
+                sessionId,
+                matched,
+                session: { blackboard: session.blackboard, sessionState: session.sessionState },
+                flowLibrary: flowLibrary ?? undefined,
+              });
+              if (exResult.useExploration && "fallbackContent" in exResult) {
+                session.messages = [...session.messages, { role: "user", content: message }, { role: "assistant", content: exResult.fallbackContent }];
+                send({ content: exResult.fallbackContent });
+                return;
+              }
+              if (exResult.useExploration && "compiledMessage" in exResult) {
+                messageToUse = exResult.compiledMessage;
+                explorationRecordIdForOutcome = exResult.explorationRecordId;
+              }
+            }
+          }
           const agentStart = Date.now();
           const rollingContext =
             config.memory?.rollingLedger?.enabled && !session.sessionFlags?.privacy
               ? await getRollingContextForPrompt(workspace)
               : undefined;
+          try {
           const { content, messages, citedMemoryIds } = await runAgentLoop({
             config: { ...config, workspace },
-            userMessage: message,
+            userMessage: messageToUse,
             sessionMessages: session.messages,
             sessionId,
             sessionGoal: session.sessionGoal,
@@ -1008,6 +1039,25 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
               } catch (_) {}
             },
           });
+          if (
+            explorationRecordIdForOutcome &&
+            config.exploration?.experience?.storeOutcome
+          ) {
+            await updateExplorationOutcome(workspace, explorationRecordIdForOutcome, { success: true });
+            if (config.retrospective?.enabled) {
+              void appendTelemetry(workspace, {
+                ts: new Date().toISOString(),
+                type: "exploration_outcome",
+                sessionId,
+                success: true,
+                payload: {
+                  correlationId: id,
+                  explorationRecordId: explorationRecordIdForOutcome,
+                  success: true,
+                },
+              });
+            }
+          }
           session.sessionState = "Idle";
           session.messages = messages;
           if (config.retrospective?.enabled) {
@@ -1115,6 +1165,28 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
             ...(evolutionSuggestionAgent ? { evolutionSuggestion: true } : {}),
           });
           return;
+          } catch (e) {
+            if (
+              explorationRecordIdForOutcome &&
+              config.exploration?.experience?.storeOutcome
+            ) {
+              await updateExplorationOutcome(workspace, explorationRecordIdForOutcome, { success: false });
+              if (config.retrospective?.enabled) {
+                void appendTelemetry(workspace, {
+                  ts: new Date().toISOString(),
+                  type: "exploration_outcome",
+                  sessionId,
+                  success: false,
+                  payload: {
+                    correlationId: id,
+                    explorationRecordId: explorationRecordIdForOutcome,
+                    success: false,
+                  },
+                });
+              }
+            }
+            throw e;
+          }
           } finally {
             chatInProgressByWs.set(ws, false);
           }

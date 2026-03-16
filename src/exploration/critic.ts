@@ -51,8 +51,8 @@ export function buildCriticPrompt(
   return { system, user };
 }
 
-/** 从 Critic 文本中解析 chosenPlanId 与 scores */
-function parseCriticOutput(text: string, variantIds: string[]): CriticResult | null {
+/** 从 Critic 文本中解析 chosenPlanId 与 scores（供测试与 E2E 使用） */
+export function parseCriticOutput(text: string, variantIds: string[]): CriticResult | null {
   let raw = text.trim();
   const codeBlock = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (codeBlock) raw = codeBlock[1].trim();
@@ -76,12 +76,12 @@ function parseCriticOutput(text: string, variantIds: string[]): CriticResult | n
   }
 }
 
-/** WO-1625: 调用 Critic LLM，返回 chosenPlanId 与 scores */
+/** WO-1625: 调用 Critic LLM，返回 chosenPlanId 与 scores。解析失败时返回 null，调用方应中止探索。 */
 export async function callCritic(
   config: RzeclawConfig,
   variants: PlanVariant[],
   taskDescription: string
-): Promise<CriticResult> {
+): Promise<CriticResult | null> {
   if (variants.length === 0) {
     return { chosenPlanId: "", scores: [] };
   }
@@ -91,21 +91,21 @@ export async function callCritic(
       scores: [{ planId: variants[0].planId, score: 1 }],
     };
   }
-  const client = getLLMClient(config);
-  const weights = config.exploration?.critic?.weights;
-  const { system, user } = buildCriticPrompt(variants, taskDescription, weights);
-  const response = await client.createMessage({
-    system,
-    messages: [{ role: "user", content: user }],
-    max_tokens: MAX_CRITIC_TOKENS,
-  });
-  const textBlock = response.content.find((b) => b.type === "text");
-  const text = textBlock && "text" in textBlock ? textBlock.text : "";
-  const variantIds = variants.map((v) => v.planId);
-  const result = parseCriticOutput(text, variantIds);
-  if (result) return result;
-  return {
-    chosenPlanId: variantIds[0],
-    scores: variantIds.map((id) => ({ planId: id, score: 0.5 })),
-  };
+  try {
+    const client = getLLMClient(config);
+    const weights = config.exploration?.critic?.weights;
+    const { system, user } = buildCriticPrompt(variants, taskDescription, weights);
+    const response = await client.createMessage({
+      system,
+      messages: [{ role: "user", content: user }],
+      max_tokens: MAX_CRITIC_TOKENS,
+    });
+    const textBlock = response.content.find((b) => b.type === "text");
+    const text = textBlock && "text" in textBlock ? textBlock.text : "";
+    const variantIds = variants.map((v) => v.planId);
+    const result = parseCriticOutput(text, variantIds);
+    return result;
+  } catch {
+    return null;
+  }
 }

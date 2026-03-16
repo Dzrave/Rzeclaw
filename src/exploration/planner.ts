@@ -9,8 +9,14 @@ import type { PlanVariant, PlanFallback } from "./types.js";
 
 const MAX_PLANNER_TOKENS = 4096;
 
-/** WO-1621: 构建 Planner 的 system + user prompt，注入快照与用户消息 */
-export function buildPlannerPrompt(snapshot: SnapshotContext, userMessage: string): { system: string; user: string } {
+const DEFAULT_MAX_VARIANTS = 5;
+
+/** WO-1621: 构建 Planner 的 system + user prompt，注入快照与用户消息；maxVariants 来自 config.exploration.planner.maxVariants */
+export function buildPlannerPrompt(
+  snapshot: SnapshotContext,
+  userMessage: string,
+  maxVariants: number = DEFAULT_MAX_VARIANTS
+): { system: string; user: string } {
   const actionsList = snapshot.availableActions
     .map((a) => `- ${a.id}${a.description ? ` (${a.description})` : ""}`)
     .join("\n");
@@ -18,6 +24,7 @@ export function buildPlannerPrompt(snapshot: SnapshotContext, userMessage: strin
     snapshot.blackboard && Object.keys(snapshot.blackboard).length > 0
       ? JSON.stringify(snapshot.blackboard, null, 0)
       : "（无）";
+  const n = Math.max(1, Math.min(10, Math.round(maxVariants)));
   const system = `你是一个严谨的架构师。请**仅使用**系统已提供的能力解决问题，不要虚构任何不存在的工具或节点。
 
 【当前上下文】
@@ -28,7 +35,7 @@ export function buildPlannerPrompt(snapshot: SnapshotContext, userMessage: strin
 ${actionsList}
 
 【任务】
-根据用户意图与上述约束，给出 3～5 种组合这些现有节点完成任务的**预案**。每个预案为 JSON 对象，格式：
+根据用户意图与上述约束，给出 ${n} 种组合这些现有节点完成任务的**预案**。每个预案为 JSON 对象，格式：
 {
   "planId": "唯一标识如 plan_1",
   "title": "简短标题（可选）",
@@ -85,21 +92,27 @@ export function parsePlannerOutput(
     if (!item || typeof item !== "object") continue;
     const o = item as Record<string, unknown>;
     const planId = typeof o.planId === "string" ? o.planId : `plan_${variants.length + 1}`;
-    const steps = Array.isArray(o.steps)
-      ? (o.steps as Record<string, unknown>[]).map((s, i) => {
-          const actionId = String(s?.actionId ?? "").trim();
-          const valid = allowedActionIds.has(actionId);
-          return {
-            step: i + 1,
-            actionId: valid ? actionId : Array.from(allowedActionIds)[0] ?? "unknown",
-            params:
-              s && typeof s.params === "object" && s.params !== null
-                ? (s.params as Record<string, string>)
-                : undefined,
-            description: typeof s.description === "string" ? s.description : undefined,
-          };
-        })
-      : [];
+    const rawSteps = Array.isArray(o.steps) ? (o.steps as Record<string, unknown>[]) : [];
+    const steps: { step: number; actionId: string; params?: Record<string, string>; description?: string }[] = [];
+    let variantValid = true;
+    for (let i = 0; i < rawSteps.length; i++) {
+      const s = rawSteps[i];
+      const actionId = String(s?.actionId ?? "").trim();
+      if (!allowedActionIds.has(actionId)) {
+        variantValid = false;
+        break;
+      }
+      steps.push({
+        step: i + 1,
+        actionId,
+        params:
+          s && typeof s.params === "object" && s.params !== null
+            ? (s.params as Record<string, string>)
+            : undefined,
+        description: typeof s.description === "string" ? s.description : undefined,
+      });
+    }
+    if (!variantValid || steps.length === 0) continue;
     const preconditions = Array.isArray(o.preconditions)
       ? (o.preconditions as unknown[]).filter((p): p is string => typeof p === "string")
       : undefined;
@@ -113,14 +126,15 @@ export function parsePlannerOutput(
   return { variants };
 }
 
-/** WO-1622: 调用 Planner LLM（仅文本，无工具），返回 PlanVariant[] 或 Plan_Fallback */
+/** WO-1622: 调用 Planner LLM（仅文本，无工具），返回 PlanVariant[] 或 Plan_Fallback；LLM 异常时抛出，由 tryExploration 捕获并回退 */
 export async function callPlanner(
   config: RzeclawConfig,
   snapshot: SnapshotContext,
   userMessage: string
 ): Promise<{ variants: PlanVariant[] } | { fallback: PlanFallback }> {
+  const maxVariants = config.exploration?.planner?.maxVariants ?? DEFAULT_MAX_VARIANTS;
+  const { system, user } = buildPlannerPrompt(snapshot, userMessage, maxVariants);
   const client = getLLMClient(config);
-  const { system, user } = buildPlannerPrompt(snapshot, userMessage);
   const response = await client.createMessage({
     system,
     messages: [{ role: "user", content: user }],

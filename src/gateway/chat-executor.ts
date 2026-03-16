@@ -32,7 +32,7 @@ import { callIntentClassifier } from "../local-model/index.js";
 import { runAgentLoop } from "../agent/loop.js";
 import { runEvolutionInsertTree } from "../flows/evolution-insert-tree.js";
 import { shouldSkipExploration, shouldEnterExploration, tryExploration } from "../exploration/index.js";
-import { updateOutcome as updateExplorationOutcome } from "../exploration/experience.js";
+import { updateOutcomeAsync as updateExplorationOutcome } from "../exploration/experience.js";
 import { requestDelegation } from "../collaboration/delegate.js";
 import { requestSwarmBroadcast } from "../collaboration/swarm.js";
 
@@ -784,7 +784,7 @@ export async function handleChatRequest(
       explorationRecordIdForOutcome &&
       config.exploration?.experience?.storeOutcome
     ) {
-      updateExplorationOutcome(workspace, explorationRecordIdForOutcome, {
+      await updateExplorationOutcome(workspace, explorationRecordIdForOutcome, {
         success: true,
       });
       if (config.retrospective?.enabled) {
@@ -792,6 +792,7 @@ export async function handleChatRequest(
           ts: new Date().toISOString(),
           type: "exploration_outcome",
           sessionId,
+          success: true,
           payload: {
             correlationId,
             explorationRecordId: explorationRecordIdForOutcome,
@@ -809,7 +810,7 @@ export async function handleChatRequest(
       explorationRecordIdForOutcome &&
       config.exploration?.experience?.storeOutcome
     ) {
-      updateExplorationOutcome(workspace, explorationRecordIdForOutcome, {
+      await updateExplorationOutcome(workspace, explorationRecordIdForOutcome, {
         success: false,
       });
       if (config.retrospective?.enabled) {
@@ -817,6 +818,7 @@ export async function handleChatRequest(
           ts: new Date().toISOString(),
           type: "exploration_outcome",
           sessionId,
+          success: false,
           payload: {
             correlationId,
             explorationRecordId: explorationRecordIdForOutcome,
