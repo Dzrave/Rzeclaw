@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Rzeclaw Knowledge Nexus</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "secondary-fixed-dim": "#48d4f3",
+                        "tertiary-dim": "#ef81c4",
+                        "on-secondary": "#004b58",
+                        "inverse-on-surface": "#565555",
+                        "secondary-dim": "#40ceed",
+                        "background": "#0e0e0e",
+                        "error-dim": "#d73357",
+                        "surface-dim": "#0e0e0e",
+                        "on-primary-fixed": "#000000",
+                        "surface-variant": "#262626",
+                        "surface-bright": "#2c2c2c",
+                        "primary-fixed-dim": "#8387ff",
+                        "secondary": "#53ddfc",
+                        "primary-fixed": "#9396ff",
+                        "on-surface": "#ffffff",
+                        "on-secondary-container": "#ecfaff",
+                        "inverse-surface": "#fcf9f8",
+                        "surface-container-highest": "#262626",
+                        "error-container": "#a70138",
+                        "tertiary-fixed-dim": "#ef81c4",
+                        "surface-container": "#1a1a1a",
+                        "on-tertiary-fixed-variant": "#6e1354",
+                        "on-primary-fixed-variant": "#0e009d",
+                        "outline-variant": "#484847",
+                        "on-secondary-fixed": "#003a45",
+                        "surface-tint": "#a3a6ff",
+                        "on-surface-variant": "#adaaaa",
+                        "on-error": "#490013",
+                        "on-tertiary-container": "#63054a",
+                        "surface": "#0e0e0e",
+                        "secondary-fixed": "#65e1ff",
+                        "primary": "#a3a6ff",
+                        "on-secondary-fixed-variant": "#005969",
+                        "tertiary-fixed": "#ff8ed2",
+                        "primary-container": "#9396ff",
+                        "surface-container-lowest": "#000000",
+                        "outline": "#767575",
+                        "on-primary-container": "#0a0081",
+                        "on-background": "#ffffff",
+                        "on-primary": "#0f00a4",
+                        "surface-container-low": "#131313",
+                        "on-tertiary": "#701455",
+                        "secondary-container": "#00687a",
+                        "primary-dim": "#6063ee",
+                        "surface-container-high": "#20201f",
+                        "error": "#ff6e84",
+                        "tertiary-container": "#ff8ed2",
+                        "on-tertiary-fixed": "#3b002b",
+                        "on-error-container": "#ffb2b9",
+                        "tertiary": "#ffa5d9",
+                        "inverse-primary": "#494bd7"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["JetBrains Mono"]
+                    },
+                    borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono-technical { font-family: 'JetBrains Mono', monospace; }
+        .glass-panel {
+            background: rgba(26, 26, 26, 0.6);
+            backdrop-filter: blur(12px);
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-surface-dim text-on-surface selection:bg-primary/30 custom-scrollbar overflow-x-hidden">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full flex flex-col py-6 bg-stone-950 dark:bg-[#0e0e0e] w-64 border-r-0 z-50">
+<div class="px-6 mb-10">
+<h1 class="text-xl font-bold tracking-tighter text-white dark:text-[#ffffff] uppercase font-headline">RZECLAW</h1>
+<p class="font-label text-[11px] tracking-tight text-stone-500">V-0.9.4</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-6 py-3 text-stone-500 dark:text-[#adaaaa] hover:text-white hover:bg-stone-800 dark:hover:bg-[#20201f] transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">chat_bubble</span>
+<span class="font-label text-[11px] tracking-tight">Chat</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-stone-500 dark:text-[#adaaaa] hover:text-white hover:bg-stone-800 dark:hover:bg-[#20201f] transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">work</span>
+<span class="font-label text-[11px] tracking-tight">Office</span>
+</a>
+<!-- Active Tab: Library (Knowledge Nexus) -->
+<a class="flex items-center gap-3 px-6 py-3 text-indigo-400 dark:text-[#53ddfc] border-r-2 border-indigo-500 font-bold bg-white/5 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-[20px]">database</span>
+<span class="font-label text-[11px] tracking-tight">Library</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-stone-500 dark:text-[#adaaaa] hover:text-white hover:bg-stone-800 dark:hover:bg-[#20201f] transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">memory</span>
+<span class="font-label text-[11px] tracking-tight">Memory</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-stone-500 dark:text-[#adaaaa] hover:text-white hover:bg-stone-800 dark:hover:bg-[#20201f] transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">smart_toy</span>
+<span class="font-label text-[11px] tracking-tight">Agents</span>
+</a>
+</nav>
+<!-- Vector DB Configuration Panel (New sidebar section) -->
+<div class="px-6 py-6 border-y border-white/5 mx-4 my-6 bg-surface-container-low rounded-xl">
+<h4 class="font-headline text-[10px] font-bold uppercase tracking-widest text-primary mb-4">Vector DB Config</h4>
+<div class="space-y-3">
+<div class="space-y-1">
+<label class="font-label text-[9px] text-stone-500 uppercase">Provider</label>
+<select class="w-full bg-surface-container-highest border-0 rounded text-[10px] font-label py-1 text-white focus:ring-1 focus:ring-primary/40">
+<option>Pinecone</option>
+<option>ChromaDB</option>
+<option>Weaviate</option>
+<option>Milvus</option>
+</select>
+</div>
+<div class="space-y-1">
+<label class="font-label text-[9px] text-stone-500 uppercase">Endpoint</label>
+<input class="w-full bg-surface-container-highest border-0 rounded text-[10px] font-label py-1 text-white focus:ring-1 focus:ring-primary/40" placeholder="https://..." type="text" value="https://api.vectordb.io"/>
+</div>
+<div class="space-y-1">
+<label class="font-label text-[9px] text-stone-500 uppercase">Model</label>
+<input class="w-full bg-surface-container-highest border-0 rounded text-[10px] font-label py-1 text-white focus:ring-1 focus:ring-primary/40" placeholder="text-embedding-3" type="text" value="mxbai-embed-large"/>
+</div>
+<button class="w-full py-1.5 border border-primary/20 hover:bg-primary/5 text-primary text-[9px] font-bold uppercase tracking-widest rounded transition-colors mt-2">
+                    Test Connection
+                </button>
+</div>
+</div>
+<div class="px-6 mb-6">
+<button class="w-full py-2.5 bg-gradient-to-br from-primary to-primary-dim text-on-primary-fixed font-bold rounded-lg flex items-center justify-center gap-2 text-xs uppercase tracking-widest shadow-lg shadow-primary/10 transition-transform active:scale-95">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                New Collection
+            </button>
+</div>
+<div class="mt-auto space-y-1">
+<a class="flex items-center gap-3 px-6 py-2 text-stone-500 dark:text-[#adaaaa] hover:text-white transition-all" href="#">
+<span class="material-symbols-outlined text-[18px]">settings</span>
+<span class="font-label text-[11px] tracking-tight">Knowledge Settings</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-2 text-stone-500 dark:text-[#adaaaa] hover:text-white transition-all" href="#">
+<span class="material-symbols-outlined text-[18px]">sensors</span>
+<span class="font-label text-[11px] tracking-tight">System Status</span>
+</a>
+</div>
+</aside>
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full z-40 bg-stone-950/80 dark:bg-[#0e0e0e]/80 backdrop-blur-xl border-b border-white/5 dark:border-[#484847]/15 h-16 pl-72 pr-8 flex justify-between items-center">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3">
+<span class="text-lg font-black text-white dark:text-[#ffffff] font-headline uppercase tracking-tight">Knowledge Engine</span>
+<span class="h-4 w-[1px] bg-outline-variant/30"></span>
+<nav class="flex items-center gap-6">
+<a class="font-label text-[11px] uppercase tracking-widest text-stone-400 hover:text-white" href="#">Global Index</a>
+<a class="font-label text-[11px] uppercase tracking-widest text-cyan-400 dark:text-[#53ddfc] border-b border-cyan-400 py-1" href="#">Vector Store</a>
+<a class="font-label text-[11px] uppercase tracking-widest text-stone-400 hover:text-white" href="#">Pipeline</a>
+</nav>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-primary-fixed-dim/60 text-[18px]">search</span>
+<input class="bg-surface-container-highest border-0 rounded-lg pl-10 pr-4 py-2 text-xs font-label w-64 focus:ring-1 focus:ring-indigo-500/30 transition-all placeholder:text-stone-600" placeholder="Query Global Knowledge..." type="text"/>
+</div>
+<button class="bg-surface-container-high border border-outline-variant/20 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-secondary hover:bg-secondary/10 transition-colors">
+                Connect Vector DB
+            </button>
+<div class="flex items-center gap-2 ml-4">
+<span class="material-symbols-outlined text-stone-400 cursor-pointer hover:text-white transition-colors">notifications_active</span>
+<span class="material-symbols-outlined text-stone-400 cursor-pointer hover:text-white transition-colors">account_tree</span>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-primary/20 bg-surface-container ml-2">
+<img alt="Abstract technical profile icon" class="w-full h-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVRRvIX9nLTS3XPgwm26lmKTVdnfoK40Pt0D-UtNo6QS1pXnmDKf3LlMXP7XFLx2QaiTxa8Lf7nmVNAEHEIBmVlIHzBHASCoWhPgwNgJOrtwEPHXSl0F8zIqR1Edf3exnSOhey4zPdVcIuwX82QDFRa0hYrnU2q2Jdy3CW2J2YPOkOFmZzz2MVtum9cl41Jbt4DXb-350M8kVD81A1S_bK0kuB8XOTIvHUemmcCa8rhXENbT9rYIy8H25bEaTJGZHCB8rPhM6xIl0"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-64 pt-24 pb-12 px-8">
+<!-- New Collection Creator Section (Design as an inline form area) -->
+<div class="mb-10 bg-surface-container border border-primary/20 rounded-xl overflow-hidden p-6">
+<div class="flex items-center justify-between mb-6">
+<div class="flex items-center gap-3">
+<div class="p-2 bg-primary/10 rounded-lg">
+<span class="material-symbols-outlined text-primary text-[20px]">create_new_folder</span>
+</div>
+<div>
+<h3 class="font-headline text-sm font-bold uppercase tracking-widest text-white">New Collection Creator</h3>
+<p class="font-label text-[10px] text-stone-500 uppercase">Initialize a fresh vector namespace</p>
+</div>
+</div>
+<button class="text-stone-500 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<div class="grid grid-cols-4 gap-6">
+<div class="space-y-1.5">
+<label class="font-label text-[10px] text-stone-400 uppercase tracking-widest">Collection Name</label>
+<input class="w-full bg-surface-container-low border border-outline-variant/10 rounded-lg px-4 py-2 text-xs font-label text-white focus:ring-1 focus:ring-primary/40" placeholder="e.g. Project_Nebula_Vectors" type="text"/>
+</div>
+<div class="space-y-1.5">
+<label class="font-label text-[10px] text-stone-400 uppercase tracking-widest">Type</label>
+<select class="w-full bg-surface-container-low border border-outline-variant/10 rounded-lg px-4 py-2 text-xs font-label text-white focus:ring-1 focus:ring-primary/40">
+<option>Custom Internal</option>
+<option>External Reference</option>
+<option>Ephemeral Cache</option>
+</select>
+</div>
+<div class="space-y-1.5">
+<label class="font-label text-[10px] text-stone-400 uppercase tracking-widest">Embedding Model</label>
+<select class="w-full bg-surface-container-low border border-outline-variant/10 rounded-lg px-4 py-2 text-xs font-label text-white focus:ring-1 focus:ring-primary/40">
+<option>mxbai-embed-large (v1.2)</option>
+<option>nomic-embed-text (v1.5)</option>
+<option>all-minilm-l6-v2</option>
+</select>
+</div>
+<div class="flex items-end">
+<button class="w-full h-[38px] bg-primary text-on-primary-fixed font-bold rounded-lg text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all">
+                        Create Collection
+                    </button>
+</div>
+<div class="col-span-4 space-y-1.5">
+<label class="font-label text-[10px] text-stone-400 uppercase tracking-widest">Description</label>
+<textarea class="w-full bg-surface-container-low border border-outline-variant/10 rounded-lg px-4 py-2 text-xs font-label text-white focus:ring-1 focus:ring-primary/40" placeholder="Define the purpose and scope of this vector collection..." rows="1"></textarea>
+</div>
+</div>
+</div>
+<!-- Top Section: Status & Search Preview -->
+<div class="grid grid-cols-12 gap-6 mb-8">
+<!-- Search Results Preview (Glassmorphic) -->
+<div class="col-span-8 glass-panel border border-outline-variant/10 rounded-xl p-6 relative overflow-hidden">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-headline text-sm font-bold uppercase tracking-widest text-primary">Global Search Explorer</h3>
+<div class="flex items-center gap-2">
+<span class="flex h-2 w-2 rounded-full bg-secondary animate-pulse"></span>
+<span class="font-label text-[10px] text-on-surface-variant uppercase">Engine Online</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="bg-surface-container-low p-4 rounded-lg border-l-2 border-primary/40">
+<div class="flex justify-between items-start mb-1">
+<span class="font-label text-[11px] text-primary-fixed-dim">src/core/router.ts</span>
+<span class="font-label text-[10px] text-stone-600">Relevance: 0.98</span>
+</div>
+<p class="text-xs text-on-surface-variant font-body leading-relaxed italic">"...implementing the vector similarity threshold for local intent mapping..."</p>
+</div>
+<div class="bg-surface-container-low p-4 rounded-lg border-l-2 border-secondary/40">
+<div class="flex justify-between items-start mb-1">
+<span class="font-label text-[11px] text-secondary">docs/onboarding.md</span>
+<span class="font-label text-[10px] text-stone-600">Relevance: 0.84</span>
+</div>
+<p class="text-xs text-on-surface-variant font-body leading-relaxed italic">"...users should first ingest their local documentation to enable context-aware chat..."</p>
+</div>
+</div>
+<!-- AI Pulse Line -->
+<div class="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary to-transparent opacity-50"></div>
+</div>
+<!-- Provider Status Widget -->
+<div class="col-span-4 bg-surface-container border border-outline-variant/10 rounded-xl p-6 flex flex-col">
+<h3 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface mb-6">Inference Stack</h3>
+<div class="space-y-6">
+<div class="flex items-center justify-between">
+<div>
+<p class="font-label text-[10px] text-stone-500 uppercase">Provider</p>
+<p class="text-sm font-bold text-on-surface">Ollama <span class="text-[10px] font-normal text-secondary-dim font-label">(Local)</span></p>
+</div>
+<span class="material-symbols-outlined text-cyan-400">check_circle</span>
+</div>
+<div class="flex items-center justify-between">
+<div>
+<p class="font-label text-[10px] text-stone-500 uppercase">Embedding Model</p>
+<p class="text-xs font-label text-primary-fixed-dim">mxbai-embed-large</p>
+</div>
+<span class="font-label text-[10px] text-on-surface-variant">v1.2</span>
+</div>
+<div class="mt-auto pt-4 border-t border-outline-variant/10 flex justify-between items-end">
+<div>
+<p class="font-label text-[10px] text-stone-500 uppercase">Average Latency</p>
+<p class="text-xl font-bold text-white font-label">42<span class="text-xs text-stone-600 ml-1">ms</span></p>
+</div>
+<div class="flex gap-1 h-8 items-end">
+<div class="w-1 bg-primary h-3"></div>
+<div class="w-1 bg-primary h-5"></div>
+<div class="w-1 bg-primary h-4"></div>
+<div class="w-1 bg-secondary h-6"></div>
+<div class="w-1 bg-primary h-4"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Vector Collections Bento Grid -->
+<div class="flex items-center justify-between mb-4 px-1">
+<h2 class="font-headline text-xs font-bold uppercase tracking-[0.2em] text-stone-500">Vector Collections</h2>
+<button class="flex items-center gap-2 px-3 py-1.5 bg-surface-container-high border border-outline-variant/10 rounded text-[9px] font-bold uppercase tracking-widest text-primary hover:bg-primary/5 transition-all">
+<span class="material-symbols-outlined text-[14px]">refresh</span>
+                Reindex All
+            </button>
+</div>
+<div class="grid grid-cols-3 gap-6 mb-8">
+<!-- Motivation Collection -->
+<div class="group relative bg-surface-container-low hover:bg-surface-container transition-colors p-6 rounded-xl border border-outline-variant/5">
+<div class="flex justify-between items-start mb-8">
+<div class="flex gap-2">
+<div class="p-3 bg-primary/10 rounded-lg">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">psychology_alt</span>
+</div>
+<div class="flex flex-col justify-center">
+<span class="font-label text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded uppercase w-fit">Core Intent</span>
+</div>
+</div>
+<div class="flex items-center gap-1">
+<button class="p-1.5 text-stone-500 hover:text-primary transition-colors bg-white/5 rounded" title="Reindex Collection">
+<span class="material-symbols-outlined text-[16px]">refresh</span>
+</button>
+<div class="relative">
+<button class="p-1.5 text-stone-500 hover:text-white transition-colors bg-white/5 rounded">
+<span class="material-symbols-outlined text-[16px]">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+<h4 class="font-headline text-lg font-bold text-white mb-1">Motivation</h4>
+<p class="text-xs text-on-surface-variant font-body mb-6">Local flow routing vectors based on historical interaction patterns.</p>
+<div class="flex items-center justify-between border-t border-outline-variant/10 pt-4">
+<div class="font-label text-[10px]">
+<p class="text-stone-600 uppercase">Records</p>
+<p class="text-on-surface">1,240,882</p>
+</div>
+<button class="font-label text-[10px] text-primary uppercase font-bold group-hover:underline">Explore</button>
+</div>
+</div>
+<!-- Documentation Collection -->
+<div class="group relative bg-surface-container-low hover:bg-surface-container transition-colors p-6 rounded-xl border border-outline-variant/5">
+<div class="flex justify-between items-start mb-8">
+<div class="flex gap-2">
+<div class="p-3 bg-secondary/10 rounded-lg">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">description</span>
+</div>
+<div class="flex flex-col justify-center">
+<span class="font-label text-[10px] bg-secondary/20 text-secondary px-2 py-0.5 rounded uppercase w-fit">Documentation</span>
+</div>
+</div>
+<div class="flex items-center gap-1">
+<button class="p-1.5 text-stone-500 hover:text-secondary transition-colors bg-white/5 rounded" title="Reindex Collection">
+<span class="material-symbols-outlined text-[16px]">refresh</span>
+</button>
+<div class="relative">
+<button class="p-1.5 text-stone-500 hover:text-white transition-colors bg-white/5 rounded">
+<span class="material-symbols-outlined text-[16px]">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+<h4 class="font-headline text-lg font-bold text-white mb-1">Documentation</h4>
+<p class="text-xs text-on-surface-variant font-body mb-6">Ingested product manuals, API specifications, and README files.</p>
+<div class="flex items-center justify-between border-t border-outline-variant/10 pt-4">
+<div class="font-label text-[10px]">
+<p class="text-stone-600 uppercase">Records</p>
+<p class="text-on-surface">42,501</p>
+</div>
+<button class="font-label text-[10px] text-secondary uppercase font-bold group-hover:underline">Explore</button>
+</div>
+</div>
+<!-- Session Context Collection -->
+<div class="group relative bg-surface-container-low hover:bg-surface-container transition-colors p-6 rounded-xl border border-outline-variant/5">
+<div class="flex justify-between items-start mb-8">
+<div class="flex gap-2">
+<div class="p-3 bg-surface-container-highest rounded-lg">
+<span class="material-symbols-outlined text-stone-300" style="font-variation-settings: 'FILL' 1;">history</span>
+</div>
+<div class="flex flex-col justify-center">
+<span class="font-label text-[10px] bg-stone-800 text-stone-400 px-2 py-0.5 rounded uppercase w-fit">Ephemeral</span>
+</div>
+</div>
+<div class="flex items-center gap-1">
+<button class="p-1.5 text-stone-500 hover:text-white transition-colors bg-white/5 rounded" title="Reindex Collection">
+<span class="material-symbols-outlined text-[16px]">refresh</span>
+</button>
+<div class="relative">
+<button class="p-1.5 text-stone-500 hover:text-white transition-colors bg-white/5 rounded">
+<span class="material-symbols-outlined text-[16px]">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+<h4 class="font-headline text-lg font-bold text-white mb-1">Session Context</h4>
+<p class="text-xs text-on-surface-variant font-body mb-6">Historical conversation logs and temporary runtime embeddings.</p>
+<div class="flex items-center justify-between border-t border-outline-variant/10 pt-4">
+<div class="font-label text-[10px]">
+<p class="text-stone-600 uppercase">Records</p>
+<p class="text-on-surface">256,194</p>
+</div>
+<button class="font-label text-[10px] text-stone-400 uppercase font-bold group-hover:underline">Explore</button>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-12 gap-6">
+<!-- Motivation RAG & Trigger Visualizer -->
+<div class="col-span-7 bg-surface-container border border-outline-variant/10 rounded-xl overflow-hidden flex flex-col">
+<div class="p-6 border-b border-outline-variant/10 flex justify-between items-center">
+<div>
+<h3 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Motivation Trigger Map</h3>
+<p class="font-label text-[9px] text-stone-500 uppercase mt-1">Real-time Stream Mapping</p>
+</div>
+<button class="flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/20 rounded text-[9px] font-bold uppercase tracking-widest text-primary hover:bg-primary/20 transition-all">
+<span class="material-symbols-outlined text-[14px]">add_circle</span>
+                        Add Entry
+                    </button>
+</div>
+<!-- Inline Add Entry Form (Template) -->
+<div class="p-4 bg-primary/5 border-b border-primary/10 grid grid-cols-12 gap-3 items-end">
+<div class="col-span-4 space-y-1">
+<label class="font-label text-[8px] text-primary uppercase">Trigger Text</label>
+<input class="w-full bg-surface-container-low border border-primary/20 rounded px-3 py-1 text-[10px] font-label text-white focus:ring-0" placeholder="Intent fragment..." type="text"/>
+</div>
+<div class="col-span-4 space-y-1">
+<label class="font-label text-[8px] text-primary uppercase">Target Flow</label>
+<select class="w-full bg-surface-container-low border border-primary/20 rounded px-3 py-1 text-[10px] font-label text-white focus:ring-0">
+<option>Technical_Analysis_Flow</option>
+<option>Account_Support_Tier_1</option>
+<option>Graph_Construction_Routine</option>
+</select>
+</div>
+<div class="col-span-2 space-y-1">
+<label class="font-label text-[8px] text-primary uppercase">Exp. Score</label>
+<input class="w-full bg-surface-container-low border border-primary/20 rounded px-3 py-1 text-[10px] font-label text-white focus:ring-0" placeholder="0.95" type="number"/>
+</div>
+<div class="col-span-2 flex gap-1">
+<button class="flex-1 bg-primary text-on-primary-fixed py-1 rounded text-[9px] font-bold uppercase">Save</button>
+<button class="flex-1 bg-stone-800 text-stone-400 py-1 rounded text-[9px] font-bold uppercase">X</button>
+</div>
+</div>
+<div class="flex-1 overflow-auto custom-scrollbar">
+<table class="w-full text-left font-label text-[11px]">
+<thead class="sticky top-0 z-10">
+<tr class="bg-surface-container-high text-stone-500 uppercase tracking-tighter">
+<th class="px-6 py-3 font-medium">Recent Query Fragment</th>
+<th class="px-6 py-3 font-medium">Mapped Motivation</th>
+<th class="px-6 py-3 font-medium text-right">Similarity</th>
+<th class="px-6 py-3 font-medium text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/5">
+<tr class="hover:bg-white/5 transition-colors group">
+<td class="px-6 py-4 text-on-surface-variant">"analyze the latest vector pipeline..."</td>
+<td class="px-6 py-4">
+<span class="flex items-center gap-2">
+<span class="h-1.5 w-1.5 rounded-full bg-primary"></span>
+                                        Technical_Analysis_Flow
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right text-primary font-bold">0.992</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-3 text-stone-600 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+<button class="hover:text-error transition-colors"><span class="material-symbols-outlined text-[16px]">delete</span></button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-white/5 transition-colors group">
+<td class="px-6 py-4 text-on-surface-variant">"how do I reset my API key?"</td>
+<td class="px-6 py-4">
+<span class="flex items-center gap-2">
+<span class="h-1.5 w-1.5 rounded-full bg-secondary"></span>
+                                        Account_Support_Tier_1
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right text-secondary font-bold">0.874</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-3 text-stone-600 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+<button class="hover:text-error transition-colors"><span class="material-symbols-outlined text-[16px]">delete</span></button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-white/5 transition-colors group">
+<td class="px-6 py-4 text-on-surface-variant">"build a new knowledge graph"</td>
+<td class="px-6 py-4">
+<span class="flex items-center gap-2">
+<span class="h-1.5 w-1.5 rounded-full bg-primary"></span>
+                                        Graph_Construction_Routine
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right text-primary font-bold">0.915</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-3 text-stone-600 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+<button class="hover:text-error transition-colors"><span class="material-symbols-outlined text-[16px]">delete</span></button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-white/5 transition-colors group">
+<td class="px-6 py-4 text-on-surface-variant">"summarize the last session"</td>
+<td class="px-6 py-4">
+<span class="flex items-center gap-2">
+<span class="h-1.5 w-1.5 rounded-full bg-stone-600"></span>
+                                        Historical_Context_Recall
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right text-stone-500 font-bold">0.762</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-3 text-stone-600 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+<button class="hover:text-error transition-colors"><span class="material-symbols-outlined text-[16px]">delete</span></button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Knowledge Ingestion & Processing Pipeline -->
+<div class="col-span-5 flex flex-col gap-6">
+<!-- Dropzone / Ingestion (Enhanced) -->
+<div class="bg-surface-container border border-dashed border-outline-variant/30 rounded-xl p-8 flex flex-col items-center justify-center text-center group cursor-pointer hover:border-primary/50 transition-all relative">
+<span class="material-symbols-outlined text-4xl text-stone-700 group-hover:text-primary transition-colors mb-4">upload_file</span>
+<h4 class="font-headline text-sm font-bold text-white mb-2">Knowledge Ingestion</h4>
+<p class="text-[11px] text-on-surface-variant max-w-[200px] mb-6">Drop files or folders to initiate recursive embedding</p>
+<!-- Multi-step Progress Tracker (Enhanced) -->
+<div class="w-full space-y-4 px-4 py-4 bg-stone-900/50 rounded-lg border border-white/5">
+<div class="space-y-1.5">
+<div class="flex justify-between font-label text-[8px] uppercase tracking-widest text-stone-500">
+<span>Chunking</span>
+<span class="text-white">92%</span>
+</div>
+<div class="h-1 w-full bg-stone-800 rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[92%] transition-all duration-700"></div>
+</div>
+</div>
+<div class="space-y-1.5">
+<div class="flex justify-between font-label text-[8px] uppercase tracking-widest text-stone-500">
+<span>Embedding</span>
+<span class="text-white">45%</span>
+</div>
+<div class="h-1 w-full bg-stone-800 rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-[45%] transition-all duration-700"></div>
+</div>
+</div>
+<div class="space-y-1.5">
+<div class="flex justify-between font-label text-[8px] uppercase tracking-widest text-stone-500">
+<span>Vector Sync</span>
+<span class="text-white">12%</span>
+</div>
+<div class="h-1 w-full bg-stone-800 rounded-full overflow-hidden">
+<div class="h-full bg-white/40 w-[12%] transition-all duration-700"></div>
+</div>
+</div>
+<div class="pt-2 flex flex-col gap-1 text-left">
+<p class="font-label text-[9px] text-stone-400 italic">Processing: <span class="text-white">technical_spec_v2.pdf</span></p>
+<div class="flex justify-between items-center mt-2">
+<p class="font-label text-[8px] text-stone-500 uppercase tracking-tighter">EST. REMAINING: 4m 12s</p>
+<button class="text-[9px] font-bold text-error uppercase hover:underline">Cancel Task</button>
+</div>
+</div>
+</div>
+<div class="mt-6 flex flex-wrap justify-center gap-2">
+<span class="px-2 py-1 rounded bg-stone-900 text-[9px] font-label text-stone-500 border border-outline-variant/10">./docs</span>
+<span class="px-2 py-1 rounded bg-stone-900 text-[9px] font-label text-stone-500 border border-outline-variant/10">./src/core</span>
+<span class="px-2 py-1 rounded bg-stone-900 text-[9px] font-label text-stone-500 border border-outline-variant/10">./wiki</span>
+</div>
+</div>
+<!-- Active Pipeline Progress -->
+<div class="bg-surface-container border border-outline-variant/10 rounded-xl p-6">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-headline text-xs font-bold uppercase tracking-widest text-on-surface">Active Pipeline</h3>
+<span class="font-label text-[10px] text-secondary">Indexing Phase 2...</span>
+</div>
+<div class="space-y-6">
+<div>
+<div class="flex justify-between items-center mb-2">
+<p class="font-label text-[10px] text-on-surface-variant uppercase">Chunking &amp; Embedding</p>
+<p class="font-label text-[10px] text-white">74%</p>
+</div>
+<div class="h-1 w-full bg-stone-800 rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-primary to-secondary w-[74%]"></div>
+</div>
+</div>
+<div class="flex items-center gap-4 bg-surface-container-low p-3 rounded-lg border border-outline-variant/5">
+<div class="p-2 bg-secondary/10 rounded">
+<span class="material-symbols-outlined text-secondary text-[18px]">sync</span>
+</div>
+<div class="flex-1">
+<p class="font-label text-[11px] text-white">Vector Store Sync</p>
+<p class="font-label text-[9px] text-stone-500 italic">Updating 1,204 shards in us-east-1</p>
+</div>
+<button class="text-stone-600 hover:text-white transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Contextual Status Line (Bottom) -->
+<footer class="fixed bottom-0 left-64 right-0 h-8 bg-surface-container-lowest border-t border-white/5 px-6 flex items-center justify-between z-40">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="h-1.5 w-1.5 rounded-full bg-cyan-500"></span>
+<span class="font-label text-[9px] text-stone-400 uppercase tracking-tighter">Local Indexer Active</span>
+</div>
+<span class="h-3 w-[1px] bg-stone-800"></span>
+<div class="flex items-center gap-2">
+<span class="font-label text-[9px] text-stone-600 uppercase">Memory:</span>
+<span class="font-label text-[9px] text-stone-400">4.2GB / 16GB</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="font-label text-[9px] text-stone-500 uppercase">Kernel v0.9.4.rc2</span>
+<span class="material-symbols-outlined text-[14px] text-stone-600">terminal</span>
+</div>
+</footer>
+</body></html>

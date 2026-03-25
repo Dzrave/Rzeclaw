@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0e0e0e;
+        }
+        .font-headline { font-family: 'Manrope', sans-serif; }
+        /* Custom scrollbar for the workstation look */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #0e0e0e; }
+        ::-webkit-scrollbar-thumb { background: #262626; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #484847; }
+        
+        .custom-select {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23767575' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "tertiary": "#ffa5d9",
+                "on-tertiary-fixed-variant": "#6e1354",
+                "surface-container-highest": "#262626",
+                "on-surface-variant": "#adaaaa",
+                "surface-dim": "#0e0e0e",
+                "on-tertiary": "#701455",
+                "on-background": "#ffffff",
+                "on-tertiary-container": "#63054a",
+                "tertiary-dim": "#ef81c4",
+                "surface-container-high": "#20201f",
+                "on-primary-fixed-variant": "#0e009d",
+                "on-surface": "#ffffff",
+                "on-primary-container": "#0a0081",
+                "surface-container-lowest": "#000000",
+                "surface-tint": "#a3a6ff",
+                "inverse-on-surface": "#565555",
+                "inverse-primary": "#494bd7",
+                "primary-container": "#9396ff",
+                "tertiary-container": "#ff8ed2",
+                "error-container": "#a70138",
+                "tertiary-fixed": "#ff8ed2",
+                "primary-fixed": "#9396ff",
+                "surface-container": "#1a1a1a",
+                "secondary-fixed-dim": "#48d4f3",
+                "on-error-container": "#ffb2b9",
+                "secondary-dim": "#40ceed",
+                "surface-variant": "#262626",
+                "primary-fixed-dim": "#8387ff",
+                "on-secondary": "#004b58",
+                "error": "#ff6e84",
+                "on-primary": "#0f00a4",
+                "primary": "#a3a6ff",
+                "on-secondary-fixed": "#003a45",
+                "outline-variant": "#484847",
+                "secondary-fixed": "#65e1ff",
+                "on-primary-fixed": "#000000",
+                "error-dim": "#d73357",
+                "secondary": "#53ddfc",
+                "on-tertiary-fixed": "#3b002b",
+                "surface-container-low": "#131313",
+                "outline": "#767575",
+                "tertiary-fixed-dim": "#ef81c4",
+                "on-secondary-container": "#ecfaff",
+                "inverse-surface": "#fcf9f8",
+                "background": "#0e0e0e",
+                "secondary-container": "#00687a",
+                "surface-bright": "#2c2c2c",
+                "surface": "#0e0e0e",
+                "on-error": "#490013",
+                "on-secondary-fixed-variant": "#005969",
+                "primary-dim": "#6063ee"
+              },
+              fontFamily: {
+                "headline": ["Manrope"],
+                "body": ["Inter"],
+                "label": ["Inter"],
+                "mono": ["JetBrains Mono", "monospace"]
+              },
+              borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+            },
+          },
+        }
+    </script>
+</head>
+<body class="bg-surface text-on-surface selection:bg-primary/30 selection:text-primary min-h-screen">
+<!-- SideNavBar Anchor -->
+<aside class="fixed left-0 top-0 h-full w-64 border-r border-zinc-800/30 bg-zinc-950 flex flex-col py-8 space-y-6 z-40">
+<div class="px-6 mb-4">
+<h1 class="text-indigo-500 font-black font-headline text-lg tracking-widest">RZECLAW</h1>
+<p class="font-manrope text-[10px] font-semibold tracking-[0.2em] text-zinc-500 uppercase">V2.0.4-STABLE</p>
+</div>
+<nav class="flex-1 px-2 space-y-1">
+<a class="flex items-center px-4 py-3 text-white border-l-2 border-indigo-500 bg-gradient-to-r from-indigo-500/10 to-transparent transition-all duration-200 ease-in-out font-manrope text-xs font-semibold tracking-widest uppercase" href="#">
+<span class="material-symbols-outlined mr-3 text-indigo-400" data-weight="fill" style="font-variation-settings: 'FILL' 1;">security</span>
+            Security
+        </a>
+<a class="flex items-center px-4 py-3 text-zinc-500 border-l-2 border-transparent hover:bg-zinc-900/50 hover:text-zinc-200 transition-all duration-200 ease-in-out font-manrope text-xs font-semibold tracking-widest uppercase" href="#">
+<span class="material-symbols-outlined mr-3">explore</span>
+            Exploration
+        </a>
+<a class="flex items-center px-4 py-3 text-zinc-500 border-l-2 border-transparent hover:bg-zinc-900/50 hover:text-zinc-200 transition-all duration-200 ease-in-out font-manrope text-xs font-semibold tracking-widest uppercase" href="#">
+<span class="material-symbols-outlined mr-3">analytics</span>
+            Diagnostics
+        </a>
+<a class="flex items-center px-4 py-3 text-zinc-500 border-l-2 border-transparent hover:bg-zinc-900/50 hover:text-zinc-200 transition-all duration-200 ease-in-out font-manrope text-xs font-semibold tracking-widest uppercase" href="#">
+<span class="material-symbols-outlined mr-3">extension</span>
+            Modules
+        </a>
+</nav>
+<div class="px-6 space-y-4">
+<button class="w-full py-2.5 bg-gradient-to-br from-primary to-primary-dim text-on-primary-fixed font-headline text-[10px] font-bold tracking-widest rounded-md active:scale-95 transition-transform uppercase">
+            INITIATE PROTOCOL
+        </button>
+<div class="pt-4 border-t border-zinc-900">
+<a class="flex items-center px-4 py-2 text-zinc-500 hover:text-zinc-200 font-manrope text-xs font-semibold tracking-widest uppercase" href="#">
+<span class="material-symbols-outlined mr-3 text-sm">settings</span>
+                Settings
+            </a>
+<a class="flex items-center px-4 py-2 text-zinc-500 hover:text-zinc-200 font-manrope text-xs font-semibold tracking-widest uppercase" href="#">
+<span class="material-symbols-outlined mr-3 text-sm">terminal</span>
+                Logs
+            </a>
+</div>
+</div>
+</aside>
+<!-- TopAppBar Anchor -->
+<header class="fixed top-0 right-0 left-64 h-14 bg-zinc-950/80 backdrop-blur-xl flex justify-between items-center px-8 border-b border-zinc-800/50 z-30">
+<div class="flex items-center gap-4">
+<span class="text-indigo-400 font-headline tracking-tight text-sm uppercase font-bold">Security &amp; Permission Audit</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4 text-zinc-500">
+<span class="material-symbols-outlined hover:text-indigo-300 transition-colors cursor-pointer active:scale-95" title="memory">memory</span>
+<span class="material-symbols-outlined hover:text-indigo-300 transition-colors cursor-pointer active:scale-95" title="hub">hub</span>
+<span class="material-symbols-outlined hover:text-indigo-300 transition-colors cursor-pointer active:scale-95" title="Ad_Units">ad_units</span>
+</div>
+<div class="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500 to-cyan-500 p-[1px]">
+<div class="w-full h-full rounded-full bg-zinc-950 flex items-center justify-center overflow-hidden">
+<img alt="System Core" class="w-5 h-5" data-alt="Abstract geometric shape representing system core" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDc58SMNtHJC-TCZ1Y_G0869PI9G6vIP9qAj09KuR9O-0VJwWlAXoVrrZ2mB4qolhMoMmMLAkJRPX6Wj_sCZf4I2SETOjOEVNc5TYbZvcjA3z8eiGYpX8loi6We3xy6fsycfNQ5n8_5muabit3Ma1f1MDME5cjlqXnrIaBzMC3FWVW_2D8u7IubQQXzAKqp7L4W8wkucXWM_J4HDjIeK8DgpBxHixi-f7clDlC07RrXe9aWYbeCUvjZQbFAzhAqPUtNDao4VnVEW2M"/>
+</div>
+</div>
+</div>
+<div class="bg-gradient-to-r from-indigo-500/20 to-cyan-500/20 h-[1px] w-full absolute bottom-0 left-0"></div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-64 mt-14 p-8 min-h-[calc(100vh-3.5rem)]">
+<!-- Dashboard Header -->
+<div class="mb-8 flex justify-between items-end">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="w-2 h-2 bg-secondary rounded-full"></span>
+<span class="text-[10px] font-mono tracking-widest text-secondary font-bold uppercase">System Shield Active</span>
+</div>
+<h2 class="text-3xl font-headline font-extrabold tracking-tighter text-white">CORE PERMISSIONS</h2>
+</div>
+<div class="flex gap-4">
+<div class="text-right">
+<p class="text-[10px] text-on-surface-variant font-mono uppercase tracking-widest">Active Grants</p>
+<p class="text-2xl font-headline font-bold text-white">12<span class="text-indigo-500">/24</span></p>
+</div>
+<div class="text-right pl-4 border-l border-outline-variant/20">
+<p class="text-[10px] text-on-surface-variant font-mono uppercase tracking-widest">Pending Review</p>
+<p class="text-2xl font-headline font-bold text-error">03</p>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-12 gap-6">
+<!-- Left Column -->
+<section class="col-span-12 lg:col-span-5 flex flex-col gap-6">
+<!-- Dangerous Command Policy Panel -->
+<div class="bg-surface-container border border-outline-variant/10 rounded-lg p-6 relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+<span class="material-symbols-outlined text-6xl">gavel</span>
+</div>
+<h3 class="font-headline text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-lg">policy</span>
+                    Dangerous Command Policy
+                </h3>
+<div class="space-y-4">
+<!-- Command: Bash -->
+<div class="p-4 bg-surface-container-low rounded border border-transparent hover:border-outline-variant/20 transition-all">
+<div class="flex justify-between items-center mb-4">
+<div>
+<p class="text-sm font-bold text-white font-headline">bash</p>
+<p class="text-[10px] text-on-surface-variant font-mono">Shell execution &amp; scripting</p>
+</div>
+<span class="px-2 py-0.5 bg-error-container/20 text-error text-[9px] font-black tracking-widest border border-error/30 rounded uppercase">Risk: High</span>
+</div>
+<div class="grid grid-cols-3 gap-1">
+<button class="py-2 text-[9px] font-bold tracking-widest bg-error/10 text-error border border-error/30 rounded uppercase hover:bg-error hover:text-on-error transition-colors">Block</button>
+<button class="py-2 text-[9px] font-bold tracking-widest bg-secondary text-on-secondary border border-secondary/50 rounded uppercase shadow-[0_0_10px_rgba(83,221,252,0.2)]">Confirm</button>
+<button class="py-2 text-[9px] font-bold tracking-widest bg-surface-container-high text-on-surface-variant border border-outline-variant/20 rounded uppercase hover:text-white transition-colors">Dry Run</button>
+</div>
+</div>
+<!-- Command: Write -->
+<div class="p-4 bg-surface-container-low rounded border border-transparent hover:border-outline-variant/20 transition-all">
+<div class="flex justify-between items-center mb-4">
+<div>
+<p class="text-sm font-bold text-white font-headline">write</p>
+<p class="text-[10px] text-on-surface-variant font-mono">Filesystem write operations</p>
+</div>
+<span class="px-2 py-0.5 bg-primary/10 text-primary text-[9px] font-black tracking-widest border border-primary/30 rounded uppercase">Risk: Med</span>
+</div>
+<div class="grid grid-cols-3 gap-1">
+<button class="py-2 text-[9px] font-bold tracking-widest bg-surface-container-high text-on-surface-variant border border-outline-variant/20 rounded uppercase hover:text-white transition-colors">Block</button>
+<button class="py-2 text-[9px] font-bold tracking-widest bg-secondary text-on-secondary border border-secondary/50 rounded uppercase shadow-[0_0_10px_rgba(83,221,252,0.2)]">Confirm</button>
+<button class="py-2 text-[9px] font-bold tracking-widest bg-surface-container-high text-on-surface-variant border border-outline-variant/20 rounded uppercase hover:text-white transition-colors">Dry Run</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Custom Regex Rules Editor (NEW) -->
+<details class="bg-surface-container border border-outline-variant/10 rounded-lg group overflow-hidden" open="">
+<summary class="p-6 cursor-pointer hover:bg-surface-container-high transition-colors flex items-center justify-between list-none">
+<h3 class="font-headline text-xs font-bold tracking-widest text-on-surface-variant uppercase flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary text-lg">regex</span>
+                        Custom Regex Rules Editor
+                    </h3>
+<span class="material-symbols-outlined text-outline transition-transform group-open:rotate-180">expand_more</span>
+</summary>
+<div class="px-6 pb-6 space-y-4">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="text-[9px] uppercase tracking-widest text-outline font-mono border-b border-outline-variant/10">
+<th class="pb-3 font-medium">Pattern</th>
+<th class="pb-3 font-medium">Description</th>
+<th class="pb-3 font-medium text-right">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<tr class="group/row hover:bg-surface-container-highest/30 transition-colors">
+<td class="py-3 font-mono text-[10px] text-tertiary">/\.env(\.local)?/g</td>
+<td class="py-3 text-[10px] text-on-surface-variant">Sensitive environment files</td>
+<td class="py-3 text-right">
+<select class="bg-surface-container-low border border-outline-variant/20 text-[9px] font-bold tracking-widest uppercase rounded px-2 py-1 outline-none text-white focus:border-secondary custom-select">
+<option>Block</option>
+<option selected="">Confirm</option>
+</select>
+</td>
+</tr>
+<tr class="group/row hover:bg-surface-container-highest/30 transition-colors">
+<td class="py-3 font-mono text-[10px] text-tertiary">/rm\s+-rf\s+\//</td>
+<td class="py-3 text-[10px] text-on-surface-variant">Recursive root deletion</td>
+<td class="py-3 text-right">
+<select class="bg-surface-container-low border border-outline-variant/20 text-[9px] font-bold tracking-widest uppercase rounded px-2 py-1 outline-none text-white focus:border-secondary custom-select">
+<option selected="">Block</option>
+<option>Confirm</option>
+</select>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<button class="w-full py-2 border border-dashed border-outline-variant/30 rounded flex items-center justify-center gap-2 hover:border-tertiary/50 hover:bg-tertiary/5 transition-all group/add">
+<span class="material-symbols-outlined text-sm text-outline group-hover/add:text-tertiary">add_circle</span>
+<span class="text-[9px] font-bold text-outline group-hover/add:text-tertiary tracking-widest uppercase">Add Pattern Rule</span>
+</button>
+</div>
+</details>
+<!-- Protected PIDs List -->
+<div class="bg-surface-container-low rounded-lg p-6 border border-outline-variant/5">
+<h3 class="font-headline text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-4 flex items-center justify-between">
+                    Protected PIDs List
+                    <span class="text-secondary">SYSTEM_LOCK_ON</span>
+</h3>
+<div class="overflow-hidden">
+<table class="w-full text-left">
+<thead>
+<tr class="text-[9px] uppercase tracking-tighter text-outline font-mono">
+<th class="pb-2 font-medium">PID</th>
+<th class="pb-2 font-medium">Service</th>
+<th class="pb-2 font-medium">Uptime</th>
+<th class="pb-2 font-medium text-right">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<tr class="text-[11px] font-mono group">
+<td class="py-3 text-secondary">0001</td>
+<td class="py-3 text-white">system_core</td>
+<td class="py-3 text-on-surface-variant">142h 12m</td>
+<td class="py-3 text-right"><span class="w-1.5 h-1.5 rounded-full bg-secondary inline-block"></span></td>
+</tr>
+<tr class="text-[11px] font-mono group">
+<td class="py-3 text-secondary">0412</td>
+<td class="py-3 text-white">auth_gate</td>
+<td class="py-3 text-on-surface-variant">48h 04m</td>
+<td class="py-3 text-right"><span class="w-1.5 h-1.5 rounded-full bg-secondary inline-block"></span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<!-- Right Column -->
+<div class="col-span-12 lg:col-span-7 flex flex-col gap-6">
+<!-- Permission Scopes Manager -->
+<section class="bg-surface-container border border-outline-variant/10 rounded-lg p-6">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-headline text-xs font-bold tracking-widest text-on-surface-variant uppercase flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">vpn_key</span>
+                        Session Permission Scopes
+                    </h3>
+<button class="text-[10px] font-bold text-primary hover:text-on-primary-container transition-colors tracking-widest uppercase">Revoke All</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Scope Item 1 -->
+<div class="p-3 bg-surface-container-highest rounded border border-outline-variant/10 group">
+<div class="flex justify-between items-start mb-2">
+<span class="text-[10px] font-mono bg-primary/10 text-primary px-2 py-0.5 rounded">fs:read</span>
+<span class="material-symbols-outlined text-zinc-600 text-sm cursor-pointer hover:text-error transition-colors">cancel</span>
+</div>
+<code class="text-[11px] text-white font-mono block mb-3">/usr/local/rzeclaw/docs/</code>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[10px] text-error animate-pulse">timer</span>
+<span class="text-[9px] text-error font-mono font-bold uppercase tracking-widest">00:04:59</span>
+</div>
+<button class="text-[9px] font-bold text-secondary hover:text-white transition-colors uppercase tracking-widest border border-secondary/30 px-1.5 py-0.5 rounded">Extend +1h</button>
+</div>
+</div>
+<!-- Scope Item 2 -->
+<div class="p-3 bg-surface-container-highest rounded border border-outline-variant/10 group">
+<div class="flex justify-between items-start mb-2">
+<span class="text-[10px] font-mono bg-secondary/10 text-secondary px-2 py-0.5 rounded">env:read</span>
+<span class="material-symbols-outlined text-zinc-600 text-sm cursor-pointer hover:text-error transition-colors">cancel</span>
+</div>
+<code class="text-[11px] text-white font-mono block mb-3">ENV_VAR_DB_PORT</code>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[10px] text-zinc-500">timer</span>
+<span class="text-[9px] text-zinc-500 font-mono uppercase tracking-widest">00:45:12</span>
+</div>
+<button class="text-[9px] font-bold text-secondary hover:text-white transition-colors uppercase tracking-widest border border-secondary/30 px-1.5 py-0.5 rounded">Extend +1h</button>
+</div>
+</div>
+<!-- Scope Request Flow (ENHANCED) -->
+<div class="md:col-span-2 p-5 border border-dashed border-primary/30 bg-primary/5 rounded-lg">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary text-sm">add_circle</span>
+<h4 class="text-[10px] font-bold text-primary tracking-widest uppercase">Request New Permission Scope</h4>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+<div>
+<label class="block text-[9px] text-on-surface-variant font-bold uppercase mb-1.5">Scope Type</label>
+<select class="w-full bg-surface-container border border-outline-variant/20 rounded px-3 py-2 text-[10px] font-mono text-white outline-none focus:border-primary custom-select">
+<option>fs</option>
+<option>net</option>
+<option>env</option>
+</select>
+</div>
+<div class="md:col-span-2">
+<label class="block text-[9px] text-on-surface-variant font-bold uppercase mb-1.5">Target Path/Host</label>
+<input class="w-full bg-surface-container border border-outline-variant/20 rounded px-3 py-2 text-[10px] font-mono text-white outline-none focus:border-primary" placeholder="/etc/config/..." type="text"/>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+<div>
+<label class="block text-[9px] text-on-surface-variant font-bold uppercase mb-1.5">Duration</label>
+<select class="w-full bg-surface-container border border-outline-variant/20 rounded px-3 py-2 text-[10px] font-mono text-white outline-none focus:border-primary custom-select">
+<option>1h</option>
+<option selected="">4h</option>
+<option>24h</option>
+</select>
+</div>
+<div class="md:col-span-2">
+<label class="block text-[9px] text-on-surface-variant font-bold uppercase mb-1.5">Justification</label>
+<textarea class="w-full bg-surface-container border border-outline-variant/20 rounded px-3 py-2 text-[10px] text-white outline-none focus:border-primary h-10 resize-none" placeholder="Required for module expansion protocol..."></textarea>
+</div>
+</div>
+<button class="w-full py-2 bg-primary text-on-primary-fixed font-bold text-[10px] tracking-widest uppercase rounded shadow-[0_0_15px_rgba(163,166,255,0.2)] hover:brightness-110 active:scale-[0.99] transition-all">Submit Request</button>
+</div>
+</div>
+</section>
+<!-- Protected Action Review Pipeline -->
+<section class="bg-surface-container border border-outline-variant/10 rounded-lg flex-1 flex flex-col overflow-hidden">
+<div class="p-6 border-b border-outline-variant/10 bg-surface-container-high/50">
+<h3 class="font-headline text-xs font-bold tracking-widest text-on-surface-variant uppercase flex items-center gap-2">
+<span class="material-symbols-outlined text-error text-lg">security_update_warning</span>
+                        Protected Action Review Pipeline
+                    </h3>
+</div>
+<div class="flex-1 overflow-y-auto max-h-[300px]">
+<!-- Log Item -->
+<div class="p-6 border-b border-outline-variant/5 hover:bg-surface-container-high transition-colors relative">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-error"></div>
+<div class="flex justify-between items-start mb-4">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 bg-error/10 rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-error">terminal</span>
+</div>
+<div>
+<p class="text-xs font-bold text-white uppercase tracking-wider">TOOL_CALL: EXEC_BASH</p>
+<p class="text-[10px] font-mono text-zinc-500">Timestamp: 2023-11-24T14:22:01.002Z</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-[9px] text-zinc-500 uppercase font-bold mb-1">Risk Score</p>
+<p class="text-lg font-headline font-black text-error">0.92</p>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-4 rounded mb-4 font-mono text-[11px] border border-outline-variant/10">
+<span class="text-secondary">$</span> rm -rf /tmp/temporary_cache_0129
+                        </div>
+<div class="flex gap-2">
+<button class="flex-1 py-2 bg-error text-on-error text-[10px] font-bold tracking-widest uppercase rounded">Block Action</button>
+<button class="flex-1 py-2 bg-surface-container-highest text-white border border-outline-variant/20 text-[10px] font-bold tracking-widest uppercase rounded hover:bg-outline-variant/30">Approve Once</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Audit Log Export Panel (NEW) -->
+<section class="bg-surface-container border border-outline-variant/10 rounded-lg p-6">
+<h3 class="font-headline text-xs font-bold tracking-widest text-on-surface-variant uppercase flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-secondary text-lg">file_download</span>
+                    Audit Log Export
+                </h3>
+<div class="space-y-6">
+<!-- Progress Section -->
+<div>
+<div class="flex justify-between text-[9px] font-bold uppercase tracking-widest mb-2">
+<span class="text-on-surface-variant">Log Buffer Utilization</span>
+<span class="text-white">1.2 GB / 5.0 GB</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-low rounded-full overflow-hidden border border-outline-variant/5">
+<div class="h-full bg-secondary shadow-[0_0_8px_rgba(83,221,252,0.4)]" style="width: 24%"></div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div class="space-y-4">
+<div>
+<label class="block text-[9px] text-on-surface-variant font-bold uppercase mb-1.5">Start Date</label>
+<input class="w-full bg-surface-container-low border border-outline-variant/20 rounded px-3 py-2 text-[10px] font-mono text-white outline-none focus:border-secondary" type="date" value="2023-11-01"/>
+</div>
+<div>
+<label class="block text-[9px] text-on-surface-variant font-bold uppercase mb-1.5">End Date</label>
+<input class="w-full bg-surface-container-low border border-outline-variant/20 rounded px-3 py-2 text-[10px] font-mono text-white outline-none focus:border-secondary" type="date" value="2023-11-24"/>
+</div>
+</div>
+<div class="space-y-4">
+<div>
+<label class="block text-[9px] text-on-surface-variant font-bold uppercase mb-1.5">Session ID Filter</label>
+<input class="w-full bg-surface-container-low border border-outline-variant/20 rounded px-3 py-2 text-[10px] font-mono text-white outline-none focus:border-secondary" placeholder="RZ-99X..." type="text"/>
+</div>
+<div>
+<label class="block text-[9px] text-on-surface-variant font-bold uppercase mb-1.5">Output Format</label>
+<div class="grid grid-cols-2 gap-2">
+<button class="py-2 text-[9px] font-bold tracking-widest bg-secondary text-on-secondary border border-secondary/30 rounded uppercase">JSON</button>
+<button class="py-2 text-[9px] font-bold tracking-widest bg-surface-container-low text-zinc-500 border border-outline-variant/20 rounded uppercase hover:text-white transition-colors">CSV</button>
+</div>
+</div>
+</div>
+</div>
+<button class="w-full py-3 bg-secondary/10 border border-secondary/30 text-secondary text-[10px] font-black tracking-[0.2em] uppercase rounded hover:bg-secondary hover:text-on-secondary transition-all">
+                        Compile and Export Audit Log
+                    </button>
+</div>
+</section>
+</div>
+</div>
+<!-- System Footer Stats -->
+<footer class="mt-8 pt-6 border-t border-outline-variant/10 grid grid-cols-2 md:grid-cols-4 gap-6">
+<div>
+<p class="text-[9px] text-on-surface-variant font-mono uppercase tracking-widest mb-1">Encryption Mode</p>
+<p class="text-xs font-headline font-bold text-white flex items-center gap-2">
+                AES-256-GCM
+                <span class="material-symbols-outlined text-secondary text-sm">verified_user</span>
+</p>
+</div>
+<div>
+<p class="text-[9px] text-on-surface-variant font-mono uppercase tracking-widest mb-1">Kernel Integrity</p>
+<p class="text-xs font-headline font-bold text-white">NOMINAL [99.9%]</p>
+</div>
+<div>
+<p class="text-[9px] text-on-surface-variant font-mono uppercase tracking-widest mb-1">Audit Log Size</p>
+<p class="text-xs font-headline font-bold text-white">1.2 GB / 5.0 GB</p>
+</div>
+<div>
+<p class="text-[9px] text-on-surface-variant font-mono uppercase tracking-widest mb-1">Session Token</p>
+<p class="text-[10px] font-mono font-bold text-primary truncate">RZ-99X-ALPHA-PROTECT-STABLE</p>
+</div>
+</footer>
+</main>
+</body></html>

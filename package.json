@@ -13,6 +13,8 @@
     "start": "node rzeclaw.mjs",
     "gateway": "node rzeclaw.mjs gateway",
     "agent": "node rzeclaw.mjs agent",
+    "build:ui": "cd src/ui && npm run build",
+    "build:all": "npm run build && npm run build:ui",
     "test": "npm run build && node --test test/*.test.js"
   },
   "engines": {

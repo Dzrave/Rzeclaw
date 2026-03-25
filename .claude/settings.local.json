@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude mcp:*)",
+      "Bash(curl -s -X POST \"https://stitch.googleapis.com/mcp\" -H \"Content-Type: application/json\" -H \"X-Goog-Api-Key: AQ.Ab8RN6ISTwbWrW0p-3pxswrS84gb_bdKIIUD0qIvW4mlAxk9ow\" -d '{\"\"\"\"jsonrpc\"\"\"\":\"\"\"\"2.0\"\"\"\",\"\"\"\"id\"\"\"\":1,\"\"\"\"method\"\"\"\":\"\"\"\"initialize\"\"\"\",\"\"\"\"params\"\"\"\":{\"\"\"\"protocolVersion\"\"\"\":\"\"\"\"2024-11-05\"\"\"\",\"\"\"\"capabilities\"\"\"\":{},\"\"\"\"clientInfo\"\"\"\":{\"\"\"\"name\"\"\"\":\"\"\"\"test\"\"\"\",\"\"\"\"version\"\"\"\":\"\"\"\"1.0.0\"\"\"\"}}}')",
+      "Bash(curl -s -X POST \"https://stitch.googleapis.com/mcp\" -H \"Content-Type: application/json\" -H \"X-Goog-Api-Key: AQ.Ab8RN6ISTwbWrW0p-3pxswrS84gb_bdKIIUD0qIvW4mlAxk9ow\" -H \"Mcp-Session-Id: test-session\" -d '{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"id\"\":2,\"\"method\"\":\"\"tools/list\"\",\"\"params\"\":{}}')",
+      "Bash(curl -s -X POST \"https://stitch.googleapis.com/mcp\" -H \"Content-Type: application/json\" -H \"X-Goog-Api-Key: AQ.Ab8RN6ISTwbWrW0p-3pxswrS84gb_bdKIIUD0qIvW4mlAxk9ow\" -d '{\"\"\"\"jsonrpc\"\"\"\":\"\"\"\"2.0\"\"\"\",\"\"\"\"id\"\"\"\":2,\"\"\"\"method\"\"\"\":\"\"\"\"tools/list\"\"\"\",\"\"\"\"params\"\"\"\":{}}')",
+      "Bash(API_URL=\"https://stitch.googleapis.com/mcp\" API_KEY=\"AQ.Ab8RN6ISTwbWrW0p-3pxswrS84gb_bdKIIUD0qIvW4mlAxk9ow\" PID=\"5201558385094956907\" SID=\"040aa07af6b34c8fab4f9661fab4bfba\" __NEW_LINE_7aaa8e6255f875d4__ curl -s -X POST \"$API_URL\" -H \"Content-Type: application/json\" -H \"X-Goog-Api-Key: $API_KEY\" -d \"{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"id\"\":2,\"\"method\"\":\"\"tools/call\"\",\"\"params\"\":{\"\"name\"\":\"\"get_screen\"\",\"\"arguments\"\":{\"\"name\"\":\"\"projects/$PID/screens/$SID\"\",\"\"projectId\"\":\"\"$PID\"\",\"\"screenId\"\":\"\"$SID\"\"}}}\")",
+      "Bash(find /e/Rzeclaw -type f -name package.json -o -name tsconfig.json -o -name vite.config.* -o -name next.config.* -o -name webpack.config.*)",
+      "Bash(xargs wc:*)",
+      "Bash(ls /e/Rzeclaw/docs/*.md)",
+      "Bash(find /e/Rzeclaw/src/tools -name \"*.ts\" -exec basename {})",
+      "Bash(find /e/Rzeclaw/src/memory -name \"*.ts\" -exec basename {})",
+      "Bash(find /e/Rzeclaw/src/flows -name \"*.ts\" -exec basename {})",
+      "Bash(API_URL=\"https://stitch.googleapis.com/mcp\" API_KEY=\"AQ.Ab8RN6ISTwbWrW0p-3pxswrS84gb_bdKIIUD0qIvW4mlAxk9ow\" __NEW_LINE_614a070621576ca6__ curl -s -X POST \"$API_URL\" -H \"Content-Type: application/json\" -H \"X-Goog-Api-Key: $API_KEY\" -d '{\"\"\"\"jsonrpc\"\"\"\":\"\"\"\"2.0\"\"\"\",\"\"\"\"id\"\"\"\":2,\"\"\"\"method\"\"\"\":\"\"\"\"tools/list\"\"\"\",\"\"\"\"params\"\"\"\":{}}')",
+      "Bash(API_URL=\"https://stitch.googleapis.com/mcp\" API_KEY=\"AQ.Ab8RN6ISTwbWrW0p-3pxswrS84gb_bdKIIUD0qIvW4mlAxk9ow\" PID=\"5201558385094956907\" __NEW_LINE_2b5a4dbb663d6259__ curl -s -X POST \"$API_URL\" -H \"Content-Type: application/json\" -H \"X-Goog-Api-Key: $API_KEY\" -d \"{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"id\"\":30,\"\"method\"\":\"\"tools/call\"\",\"\"params\"\":{\"\"name\"\":\"\"list_screens\"\",\"\"arguments\"\":{\"\"project\"\":\"\"projects/$PID\"\",\"\"projectId\"\":\"\"$PID\"\"}}}\")",
+      "Bash(find /E/Rzeclaw -type f -name *.ts -path */memory/*)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(grep -E \"\\\\.\\(ts|js\\)$\")",
+      "Bash(xargs grep:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vite:*)",
+      "Bash(for locale:*)",
+      "Bash(do echo:*)",
+      "Read(//e/Rzeclaw/src/ui/src/i18n/locales/**)",
+      "Bash(done)",
+      "Bash(npm run:*)",
+      "Bash(robocopy dist:*)",
+      "Bash(xcopy \"E:\\\\Rzeclaw\\\\dist\" \"E:\\\\RzeclawRelaes\\\\dist\"\" /E /I /Y /Q)"
+    ]
+  }
+}

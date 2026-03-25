@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Rzeclaw | Flow Library &amp; Skills</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "inverse-primary": "#494bd7",
+              "surface-container-low": "#131313",
+              "surface-dim": "#0e0e0e",
+              "on-error-container": "#ffb2b9",
+              "error-container": "#a70138",
+              "surface-container-high": "#20201f",
+              "surface": "#0e0e0e",
+              "on-primary-container": "#0a0081",
+              "tertiary-fixed-dim": "#ef81c4",
+              "on-primary-fixed": "#000000",
+              "on-tertiary-fixed-variant": "#6e1354",
+              "on-secondary-fixed": "#003a45",
+              "tertiary": "#ffa5d9",
+              "surface-container-highest": "#262626",
+              "error": "#ff6e84",
+              "surface-container-lowest": "#000000",
+              "primary-fixed-dim": "#8387ff",
+              "on-tertiary": "#701455",
+              "secondary-fixed": "#65e1ff",
+              "on-background": "#ffffff",
+              "secondary-container": "#00687a",
+              "secondary-dim": "#40ceed",
+              "on-tertiary-fixed": "#3b002b",
+              "on-secondary-container": "#ecfaff",
+              "primary": "#a3a6ff",
+              "outline-variant": "#484847",
+              "outline": "#767575",
+              "secondary-fixed-dim": "#48d4f3",
+              "surface-tint": "#a3a6ff",
+              "on-primary-fixed-variant": "#0e009d",
+              "error-dim": "#d73357",
+              "on-surface": "#ffffff",
+              "surface-container": "#1a1a1a",
+              "on-tertiary-container": "#63054a",
+              "primary-container": "#9396ff",
+              "inverse-surface": "#fcf9f8",
+              "inverse-on-surface": "#565555",
+              "secondary": "#53ddfc",
+              "background": "#0e0e0e",
+              "on-surface-variant": "#adaaaa",
+              "surface-variant": "#262626",
+              "on-error": "#490013",
+              "on-secondary": "#004b58",
+              "tertiary-fixed": "#ff8ed2",
+              "tertiary-dim": "#ef81c4",
+              "primary-fixed": "#9396ff",
+              "surface-bright": "#2c2c2c",
+              "tertiary-container": "#ff8ed2",
+              "primary-dim": "#6063ee",
+              "on-secondary-fixed-variant": "#005969",
+              "on-primary": "#0f00a4"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"],
+              "mono": ["JetBrains Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        .tonal-shift {
+            background: linear-gradient(to bottom, rgba(255,255,255,0.03), transparent);
+        }
+        .glass-panel {
+            backdrop-filter: blur(12px);
+            background: rgba(38, 38, 38, 0.6);
+        }
+        .mono-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            letter-spacing: -0.02em;
+        }
+    </style>
+</head>
+<body class="bg-surface-dim text-on-surface font-body selection:bg-primary/30">
+<!-- SideNavBar (Rail) -->
+<aside class="fixed left-0 top-0 h-full flex flex-col py-6 bg-stone-950 dark:bg-[#0e0e0e] docked left-0 w-64 bg-stone-900/50 dark:bg-[#1a1a1a] border-r border-white/5 z-50">
+<div class="px-6 mb-8">
+<h1 class="text-xl font-bold tracking-tighter text-indigo-400 dark:text-[#a3a6ff] font-headline uppercase">Rzeclaw</h1>
+<p class="Inter text-xs uppercase tracking-wider text-stone-500 mt-1">Intelligent Monolith</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-6 py-3 text-stone-500 dark:text-[#adaaaa] hover:bg-white/5 hover:text-white transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="chat_bubble">chat_bubble</span>
+<span class="Inter text-xs uppercase tracking-wider">Chat</span>
+</a>
+<a class="flex items-center px-6 py-3 text-stone-500 dark:text-[#adaaaa] hover:bg-white/5 hover:text-white transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="work">work</span>
+<span class="Inter text-xs uppercase tracking-wider">Office</span>
+</a>
+<!-- Active State: Library -->
+<a class="flex items-center px-6 py-3 text-indigo-400 dark:text-[#a3a6ff] border-r-2 border-indigo-500 bg-indigo-500/5 transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="book_5" style="font-variation-settings: 'FILL' 1;">book_5</span>
+<span class="Inter text-xs uppercase tracking-wider">Library</span>
+</a>
+<a class="flex items-center px-6 py-3 text-stone-500 dark:text-[#adaaaa] hover:bg-white/5 hover:text-white transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3" data-icon="memory">memory</span>
+<span class="Inter text-xs uppercase tracking-wider">Memory</span>
+</a>
+</nav>
+<div class="px-6 mt-auto space-y-4">
+<button class="w-full py-2 bg-gradient-to-br from-primary to-primary-dim text-on-primary-fixed font-semibold rounded-md shadow-lg shadow-primary/10 transition-transform active:scale-95 text-sm uppercase tracking-tight">
+                New Session
+            </button>
+<div class="pt-4 border-t border-white/5 space-y-1">
+<a class="flex items-center py-2 text-stone-500 dark:text-[#adaaaa] hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined mr-3 text-sm" data-icon="settings">settings</span>
+<span class="Inter text-xs uppercase tracking-wider">Settings</span>
+</a>
+<a class="flex items-center py-2 text-stone-500 dark:text-[#adaaaa] hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined mr-3 text-sm" data-icon="sensors">sensors</span>
+<span class="Inter text-xs uppercase tracking-wider">Status</span>
+</a>
+</div>
+<div class="flex items-center gap-3 pt-4">
+<div class="w-8 h-8 rounded bg-surface-container-highest flex items-center justify-center border border-white/10">
+<span class="material-symbols-outlined text-sm text-primary" data-icon="account_circle">account_circle</span>
+</div>
+<div class="overflow-hidden">
+<p class="text-xs font-bold truncate">User Profile</p>
+<p class="mono-label text-stone-500">SYS_ADMIN_01</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- TopNavBar -->
+<header class="fixed top-0 right-0 left-64 z-40 flex justify-between items-center px-6 h-16 bg-stone-900/80 dark:bg-[#1a1a1a]/80 backdrop-blur-xl border-b border-white/5 tonal-shift shadow-2xl shadow-black/50">
+<div class="flex items-center gap-6">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-primary text-lg" data-icon="search">search</span>
+<input class="bg-surface-container-highest/50 border-none rounded-lg pl-10 pr-4 py-1.5 text-[11px] font-mono w-64 focus:ring-1 focus:ring-primary/50 placeholder:text-stone-600 transition-all" placeholder="QUERY FLOW REPOSITORY..." type="text"/>
+</div>
+<nav class="hidden lg:flex items-center gap-4">
+<a class="text-stone-400 dark:text-[#adaaaa] hover:text-white text-[11px] font-mono flex items-center gap-1.5 transition-opacity" href="#">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary shadow-[0_0_8px_rgba(83,221,252,0.6)]"></span>
+                    Heartbeat
+                </a>
+<a class="text-cyan-400 dark:text-[#53ddfc] font-mono text-[11px] flex items-center gap-1.5" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="hub">hub</span>
+                    LLM Connectivity
+                </a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-3 pr-4 border-r border-white/5">
+<button class="text-stone-400 hover:text-white transition-colors relative">
+<span class="material-symbols-outlined" data-icon="notifications_active">notifications_active</span>
+<span class="absolute top-0 right-0 w-1.5 h-1.5 bg-primary rounded-full"></span>
+</button>
+<button class="text-stone-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined" data-icon="account_tree">account_tree</span>
+</button>
+<button class="text-stone-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined" data-icon="terminal">terminal</span>
+</button>
+</div>
+<div class="flex items-center gap-2">
+<span class="mono-label text-secondary">ACTIVE_NODE_04</span>
+<div class="w-2 h-2 rounded-full bg-secondary animate-pulse"></div>
+</div>
+</div>
+</header>
+<!-- Main Content Stage -->
+<main class="ml-64 pt-20 p-8 min-h-screen bg-surface-dim">
+<div class="max-w-7xl mx-auto space-y-8">
+<!-- Header Section -->
+<section class="flex justify-between items-end">
+<div>
+<h2 class="text-3xl font-extrabold tracking-tighter font-headline text-white flex items-center gap-3">
+                        FLOW LIBRARY
+                        <span class="text-xs font-mono font-normal text-stone-500 bg-surface-container px-2 py-0.5 rounded border border-white/5">v4.0.2-stable</span>
+</h2>
+<p class="text-on-surface-variant max-w-xl mt-2 text-sm leading-relaxed">
+                        Interface for managing autonomous behaviors and core cognitive skills. Systems utilize Behavior Trees (BT) and Finite State Machines (FSM) for complex multi-step reasoning.
+                    </p>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-2 bg-surface-container-high border border-outline-variant/20 hover:bg-surface-bright transition-colors rounded text-[11px] font-mono flex items-center gap-2 text-on-surface">
+<span class="material-symbols-outlined text-sm" data-icon="search_check">search_check</span>
+                        SCAN_FAILURE_PATTERNS
+                    </button>
+<button class="px-4 py-2 bg-surface-container-high border border-outline-variant/20 hover:bg-surface-bright transition-colors rounded text-[11px] font-mono flex items-center gap-2 text-on-surface">
+<span class="material-symbols-outlined text-sm" data-icon="filter_list">filter_list</span>
+                        FILTER_SYSTEM
+                    </button>
+<button class="px-5 py-2 bg-gradient-to-br from-secondary to-secondary-dim text-on-primary-fixed font-bold rounded text-[11px] font-mono flex items-center gap-2 shadow-lg shadow-secondary/20">
+<span class="material-symbols-outlined text-sm" data-icon="auto_awesome">auto_awesome</span>
+                        AI_GENERATE_FLOW
+                    </button>
+<button class="px-5 py-2 bg-gradient-to-br from-primary to-primary-dim text-on-primary-fixed font-bold rounded text-[11px] font-mono flex items-center gap-2 shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+                        INITIALIZE_NEW_FLOW
+                    </button>
+</div>
+</section>
+<!-- Flow Routing Config (Collapsible Section) -->
+<section class="bg-surface-container/50 border border-white/5 rounded-lg overflow-hidden transition-all">
+<div class="p-4 flex items-center justify-between cursor-pointer hover:bg-surface-container-high/50 group">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary" data-icon="alt_route">alt_route</span>
+<h3 class="font-bold text-sm text-white uppercase tracking-wider">Flow Routing Configuration</h3>
+<span class="mono-label text-stone-600">8 INTENT MAPPINGS ACTIVE</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="px-3 py-1 bg-surface-container-highest border border-white/5 rounded text-[10px] font-mono text-stone-400 hover:text-white transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-xs" data-icon="add">add</span> ADD_ROUTE
+            </button>
+<span class="material-symbols-outlined text-stone-500 group-hover:text-white transition-transform" data-icon="expand_more">expand_more</span>
+</div>
+</div>
+<div class="p-6 border-t border-white/5 grid grid-cols-12 gap-6 bg-surface-container-low/30">
+<div class="col-span-7">
+<table class="w-full text-left">
+<thead>
+<tr class="border-b border-white/5">
+<th class="mono-label py-2 text-stone-500">INTENT_KEY</th>
+<th class="mono-label py-2 text-stone-500">TARGET_FLOW_ID</th>
+<th class="mono-label py-2 text-stone-500">PRIORITY</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/5">
+<tr>
+<td class="py-3 font-mono text-xs text-secondary">SYS_AUDIT_REQ</td>
+<td class="py-3 font-mono text-xs text-white">System_Audit_Monitor</td>
+<td class="py-3 font-mono text-xs text-stone-400">01 (HIGH)</td>
+</tr>
+<tr>
+<td class="py-3 font-mono text-xs text-secondary">REFACTOR_COMMAND</td>
+<td class="py-3 font-mono text-xs text-white">Code_Refactor_Engine</td>
+<td class="py-3 font-mono text-xs text-stone-400">02 (MED)</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="col-span-5 space-y-2">
+<div class="flex justify-between items-center mb-1">
+<label class="mono-label text-stone-500">SLOT_RULES.JSON</label>
+<span class="text-[10px] text-primary font-mono cursor-pointer hover:underline">BEAUTIFY</span>
+</div>
+<div class="h-32 bg-surface-container-lowest border border-white/5 p-3 rounded font-mono text-xs text-green-400 overflow-y-auto">
+                {
+  "context_persistence": true,
+  "slot_matching_logic": "fuzzy",
+  "fallbacks": [
+    "intent_classifier_v2",
+    "motivation_rag"
+  ]
+}
+            </div>
+</div>
+</div>
+</section>
+<!-- Library Grid: Asymmetric Bento Style -->
+<div class="grid grid-cols-12 gap-6">
+<!-- Automated Behaviors (Main Column) -->
+<div class="col-span-12 lg:col-span-8 space-y-6">
+<div class="flex items-center justify-between mb-2">
+<h3 class="mono-label text-primary uppercase flex items-center gap-2">
+<span class="w-1 h-3 bg-primary"></span>
+                            Active_Behaviors [BT/FSM]
+                        </h3>
+<span class="mono-label text-stone-500">Total: 14</span>
+</div>
+<!-- Behavior List -->
+<div class="space-y-3">
+<!-- Item 1 -->
+<div class="group bg-surface-container hover:bg-surface-container-high transition-all duration-300 p-4 border-l-2 border-primary/40 relative overflow-hidden">
+<div class="flex justify-between items-start mb-3">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-surface-dim flex items-center justify-center rounded border border-white/5 text-primary">
+<span class="material-symbols-outlined" data-icon="psychology">psychology</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h4 class="font-bold text-sm text-white group-hover:text-primary transition-colors uppercase tracking-tight">Code_Refactor_Engine</h4>
+<span class="text-[9px] font-mono px-1.5 py-0.5 bg-stone-700 text-white rounded">rule</span>
+</div>
+<p class="mono-label text-stone-500">TYPE: RECURSIVE_BT_CHAIN</p>
+</div>
+</div>
+<div class="text-right">
+<p class="mono-label text-secondary">98.4% SUCCESS_RATE</p>
+<p class="mono-label text-stone-600 mt-1">LAST_RUN: 04m 12s AGO</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex-1 h-1 bg-surface-container-lowest rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-[98%] shadow-[0_0_8px_rgba(83,221,252,0.4)]"></div>
+</div>
+<div class="flex gap-2">
+<span class="text-[10px] font-mono px-2 py-0.5 bg-surface-container-highest text-stone-400 rounded">GIT_PUSH</span>
+<span class="text-[10px] font-mono px-2 py-0.5 bg-surface-container-highest text-stone-400 rounded">LINT_FIX</span>
+</div>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="group bg-surface-container-low hover:bg-surface-container-high transition-all duration-300 p-4 border-l-2 border-secondary/40 relative overflow-hidden">
+<div class="flex justify-between items-start mb-3">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-surface-dim flex items-center justify-center rounded border border-white/5 text-secondary">
+<span class="material-symbols-outlined" data-icon="schema" style="font-variation-settings: 'FILL' 1;">schema</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h4 class="font-bold text-sm text-white group-hover:text-secondary transition-colors uppercase tracking-tight">System_Audit_Monitor</h4>
+<span class="text-[9px] font-mono px-1.5 py-0.5 bg-[#a3a6ff]/20 text-primary border border-primary/20 rounded">intent_classifier</span>
+</div>
+<p class="mono-label text-stone-500">TYPE: STATE_MACHINE_PERSISTENT</p>
+</div>
+</div>
+<div class="text-right">
+<p class="mono-label text-secondary">100.0% SUCCESS_RATE</p>
+<p class="mono-label text-stone-600 mt-1">LAST_RUN: ACTIVE_DAEMON</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex-1 h-1 bg-surface-container-lowest rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-full"></div>
+</div>
+<div class="flex gap-2">
+<span class="text-[10px] font-mono px-2 py-0.5 bg-surface-container-highest text-stone-400 rounded">LOG_PARSER</span>
+<span class="text-[10px] font-mono px-2 py-0.5 bg-surface-container-highest text-stone-400 rounded">SECURITY</span>
+</div>
+</div>
+</div>
+<!-- Item 3 -->
+<div class="group bg-surface-container-low hover:bg-surface-container-high transition-all duration-300 p-4 border-l-2 border-stone-700/40 relative overflow-hidden">
+<div class="flex justify-between items-start mb-3">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-surface-dim flex items-center justify-center rounded border border-white/5 text-stone-500">
+<span class="material-symbols-outlined" data-icon="search_insights">search_insights</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h4 class="font-bold text-sm text-white group-hover:text-white transition-colors uppercase tracking-tight">Market_Data_Synthesis</h4>
+<span class="text-[9px] font-mono px-1.5 py-0.5 bg-cyan-900/40 text-cyan-400 border border-cyan-400/30 rounded">motivation_rag</span>
+</div>
+<p class="mono-label text-stone-500">TYPE: ASYNC_REASONER</p>
+</div>
+</div>
+<div class="text-right">
+<p class="mono-label text-error">82.1% SUCCESS_RATE</p>
+<p class="mono-label text-stone-600 mt-1">LAST_RUN: 12h 02m AGO</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex-1 h-1 bg-surface-container-lowest rounded-full overflow-hidden">
+<div class="h-full bg-error w-[82%]"></div>
+</div>
+<div class="flex gap-2">
+<span class="text-[10px] font-mono px-2 py-0.5 bg-surface-container-highest text-stone-400 rounded">API_INGEST</span>
+<span class="text-[10px] font-mono px-2 py-0.5 bg-surface-container-highest text-stone-400 rounded">SUMMARY</span>
+</div>
+</div>
+</div>
+<!-- Item 4 -->
+<div class="group bg-surface-container-low hover:bg-surface-container-high transition-all duration-300 p-4 border-l-2 border-primary/40 relative overflow-hidden">
+<div class="flex justify-between items-start mb-3">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-surface-dim flex items-center justify-center rounded border border-white/5 text-primary">
+<span class="material-symbols-outlined" data-icon="architecture">architecture</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h4 class="font-bold text-sm text-white group-hover:text-primary transition-colors uppercase tracking-tight">API_Endpoint_Generator</h4>
+<span class="text-[9px] font-mono px-1.5 py-0.5 bg-stone-700 text-white rounded">rule</span>
+</div>
+<p class="mono-label text-stone-500">TYPE: BT_DIRECTIVE</p>
+</div>
+</div>
+<div class="text-right">
+<p class="mono-label text-secondary">95.8% SUCCESS_RATE</p>
+<p class="mono-label text-stone-600 mt-1">LAST_RUN: 01h 44m AGO</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex-1 h-1 bg-surface-container-lowest rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-[95%]"></div>
+</div>
+<div class="flex gap-2">
+<span class="text-[10px] font-mono px-2 py-0.5 bg-surface-container-highest text-stone-400 rounded">NODE_JS</span>
+<span class="text-[10px] font-mono px-2 py-0.5 bg-surface-container-highest text-stone-400 rounded">SWAGGER</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Custom Skills Management Section -->
+<div class="pt-4 space-y-4">
+<div class="flex items-center justify-between">
+<h3 class="mono-label text-primary uppercase flex items-center gap-2">
+<span class="w-1 h-3 bg-primary"></span>
+            Custom_Skill_Repository
+        </h3>
+<button class="px-3 py-1 bg-primary/10 border border-primary/20 rounded text-[10px] font-mono text-primary hover:bg-primary/20 transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-xs" data-icon="add">add</span> ADD_CUSTOM_SKILL
+        </button>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<!-- Skill Card 1 -->
+<div class="bg-surface-container p-4 border border-white/5 rounded-lg group">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h5 class="font-bold text-xs text-white uppercase tracking-wider">Web_Search_Expert</h5>
+<p class="text-[10px] text-stone-500 font-mono mt-1">Scrapes and prioritizes SERP results.</p>
+</div>
+<div class="flex gap-1.5">
+<button class="text-stone-600 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="edit">edit</span>
+</button>
+<button class="text-stone-600 hover:text-error transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="delete">delete</span>
+</button>
+</div>
+</div>
+<div class="flex items-center justify-between mt-4">
+<span class="text-[9px] font-mono px-2 py-0.5 bg-green-900/30 text-green-400 rounded">ENABLED</span>
+<span class="mono-label text-stone-600 text-[10px]">MAPPING: google_mcp_01</span>
+</div>
+</div>
+<!-- Skill Card 2 -->
+<div class="bg-surface-container p-4 border border-white/5 rounded-lg group">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h5 class="font-bold text-xs text-white uppercase tracking-wider">Image_Synthesizer</h5>
+<p class="text-[10px] text-stone-500 font-mono mt-1">DALL-E 3 bridge for schematic gen.</p>
+</div>
+<div class="flex gap-1.5">
+<button class="text-stone-600 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="edit">edit</span>
+</button>
+<button class="text-stone-600 hover:text-error transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="delete">delete</span>
+</button>
+</div>
+</div>
+<div class="flex items-center justify-between mt-4">
+<span class="text-[9px] font-mono px-2 py-0.5 bg-stone-700 text-stone-400 rounded">DISABLED</span>
+<span class="mono-label text-stone-600 text-[10px]">MAPPING: flux_bridge</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Core Skills & MCP Tools (Side Column) -->
+<div class="col-span-12 lg:col-span-4 space-y-6">
+<!-- MCP Tools Section (Enhanced with CRUD) -->
+<div>
+<div class="flex items-center justify-between mb-2">
+<h3 class="mono-label text-secondary uppercase flex items-center gap-2">
+<span class="w-1 h-3 bg-secondary"></span>
+                                MCP_Server_Protocols
+                            </h3>
+<button class="text-secondary hover:text-white transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="add_box">add_box</span>
+</button>
+</div>
+<div class="bg-surface-container border border-white/5 p-4 rounded-lg space-y-3">
+<!-- MCP Entry 1 -->
+<div class="p-3 bg-surface-container-lowest rounded border border-white/5 group relative">
+<div class="flex items-center justify-between mb-3">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-secondary" data-icon="database">database</span>
+<span class="mono-label text-white uppercase">PostgreSQL_Query_Tool</span>
+</div>
+<div class="flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-secondary shadow-[0_0_8px_rgba(83,221,252,0.6)]"></div>
+<span class="text-[9px] font-mono text-stone-500">ONLINE</span>
+</div>
+</div>
+<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1 bg-surface-container rounded hover:bg-surface-bright transition-colors text-stone-400 hover:text-secondary">
+<span class="material-symbols-outlined text-sm" data-icon="refresh">refresh</span>
+</button>
+<button class="p-1 bg-surface-container rounded hover:bg-surface-bright transition-colors text-stone-400 hover:text-primary">
+<span class="material-symbols-outlined text-sm" data-icon="edit">edit</span>
+</button>
+<button class="p-1 bg-surface-container rounded hover:bg-surface-bright transition-colors text-stone-400 hover:text-error">
+<span class="material-symbols-outlined text-sm" data-icon="delete">delete</span>
+</button>
+</div>
+<span class="absolute right-2 top-8 mono-label text-stone-600">v1.2</span>
+</div>
+<!-- MCP Entry 2 -->
+<div class="p-3 bg-surface-container-lowest rounded border border-white/5 group relative">
+<div class="flex items-center justify-between mb-3">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-stone-500" data-icon="cloud_sync">cloud_sync</span>
+<span class="mono-label text-white uppercase">S3_Bucket_Browser</span>
+</div>
+<div class="flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-stone-700"></div>
+<span class="text-[9px] font-mono text-stone-500">OFFLINE</span>
+</div>
+</div>
+<div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1 bg-surface-container rounded hover:bg-surface-bright transition-colors text-stone-400 hover:text-secondary">
+<span class="material-symbols-outlined text-sm" data-icon="play_arrow">play_arrow</span>
+</button>
+<button class="p-1 bg-surface-container rounded hover:bg-surface-bright transition-colors text-stone-400 hover:text-primary">
+<span class="material-symbols-outlined text-sm" data-icon="edit">edit</span>
+</button>
+<button class="p-1 bg-surface-container rounded hover:bg-surface-bright transition-colors text-stone-400 hover:text-error">
+<span class="material-symbols-outlined text-sm" data-icon="delete">delete</span>
+</button>
+</div>
+<span class="absolute right-2 top-8 mono-label text-stone-600">v0.9</span>
+</div>
+<div class="flex items-center justify-between p-2 bg-surface-container-lowest rounded border border-white/5 group hover:border-primary/50 transition-colors cursor-pointer opacity-70">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-stone-500" data-icon="share_reviews">share_reviews</span>
+<span class="mono-label text-white uppercase">Linear_Issue_Tracker</span>
+</div>
+<span class="mono-label text-stone-600">v2.1</span>
+</div>
+</div>
+</div>
+<!-- Core System Skills -->
+<div>
+<div class="flex items-center justify-between mb-2">
+<h3 class="mono-label text-on-surface-variant uppercase flex items-center gap-2">
+<span class="w-1 h-3 bg-stone-700"></span>
+                                Core_Primitive_Skills
+                            </h3>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div class="p-3 bg-surface-container border border-white/5 rounded-lg text-center hover:bg-surface-bright transition-colors cursor-default group">
+<span class="material-symbols-outlined text-stone-500 group-hover:text-primary mb-1" data-icon="terminal">terminal</span>
+<p class="mono-label text-white font-bold block">bash</p>
+<p class="text-[9px] text-stone-600 font-mono mt-1">EXECUTION_LAYER</p>
+</div>
+<div class="p-3 bg-surface-container border border-white/5 rounded-lg text-center hover:bg-surface-bright transition-colors cursor-default group">
+<span class="material-symbols-outlined text-stone-500 group-hover:text-primary mb-1" data-icon="edit_note">edit_note</span>
+<p class="mono-label text-white font-bold block">write</p>
+<p class="text-[9px] text-stone-600 font-mono mt-1">BUFFER_WRITE_01</p>
+</div>
+<div class="p-3 bg-surface-container border border-white/5 rounded-lg text-center hover:bg-surface-bright transition-colors cursor-default group">
+<span class="material-symbols-outlined text-stone-500 group-hover:text-primary mb-1" data-icon="history_edu">history_edu</span>
+<p class="mono-label text-white font-bold block">edit</p>
+<p class="text-[9px] text-stone-600 font-mono mt-1">DIFF_ANALYZER</p>
+</div>
+<div class="p-3 bg-surface-container border border-white/5 rounded-lg text-center hover:bg-surface-bright transition-colors cursor-default group">
+<span class="material-symbols-outlined text-stone-500 group-hover:text-primary mb-1" data-icon="visibility">visibility</span>
+<p class="mono-label text-white font-bold block">read</p>
+<p class="text-[9px] text-stone-600 font-mono mt-1">INDEXER_CORE</p>
+</div>
+</div>
+</div>
+<!-- System Status Card -->
+<div class="relative overflow-hidden p-6 rounded-lg bg-surface-container border border-white/5 glass-panel">
+<div class="relative z-10">
+<h4 class="mono-label text-stone-500 mb-4">SYSTEM_COGNITION_LOAD</h4>
+<div class="space-y-4">
+<div>
+<div class="flex justify-between mono-label mb-1">
+<span>BT_TRAVERSAL</span>
+<span>42ms</span>
+</div>
+<div class="h-1 bg-surface-container-lowest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-2/3"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between mono-label mb-1">
+<span>FSM_STATES</span>
+<span>128_ACTIVE</span>
+</div>
+<div class="h-1 bg-surface-container-lowest rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-1/2"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="absolute -right-4 -bottom-4 opacity-5 rotate-12">
+<span class="material-symbols-outlined text-8xl" data-icon="memory">memory</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Meta -->
+<footer class="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-stone-600">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-stone-700"></span>
+<span class="mono-label">KERNAL_STABLE: 9.2.1</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-stone-700"></span>
+<span class="mono-label">UPTIME: 452:12:08</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<p class="mono-label uppercase">Rzeclaw_OS © 2024</p>
+<div class="w-10 h-1 bg-primary/20 rounded-full overflow-hidden">
+<div class="w-full h-full bg-primary animate-pulse"></div>
+</div>
+</div>
+</footer>
+</div>
+</main>
+<!-- Contextual Pulse Indicator (Top) -->
+<div class="fixed top-0 left-0 w-full h-[2px] z-[60] bg-gradient-to-r from-transparent via-primary to-transparent opacity-50"></div>
+</body></html>

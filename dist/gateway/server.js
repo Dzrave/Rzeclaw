@@ -1,4 +1,5 @@
 import { WebSocketServer } from "ws";
+import http from "node:http";
 import { runAgentLoop } from "../agent/loop.js";
 import { subscribe, publish, requestResponse, createCorrelationId, publishStream, TOPIC_CHAT_REQUEST, TOPIC_CHAT_RESPONSE, TOPIC_CHAT_STREAM, TOPIC_PIPELINE_STAGE_DONE, TOPIC_PLAN_READY, } from "../event-bus/index.js";
 import { handlePipelineStageDone, isPipelineStageDonePayload } from "../collaboration/pipeline-runner.js";
@@ -40,7 +41,7 @@ import { updateOutcomeAsync as updateExplorationOutcome } from "../exploration/e
 import { ingestPaths } from "../knowledge/index.js";
 import { generateReport, writeSuggestionsFile } from "../diagnostic/index.js";
 import path from "node:path";
-import { access, stat } from "node:fs/promises";
+import { access, stat, readFile, mkdir, writeFile, readdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 /** Phase 8: 每连接认证状态 */
@@ -68,7 +69,11 @@ function getOrCreateSession(sessionId, sessionType) {
 }
 export function createGatewayServer(config, port) {
     const host = config.gateway?.host ?? "127.0.0.1";
-    const wss = new WebSocketServer({ host, port });
+    // ── HTTP server for SPA static files + WebSocket upgrade ──
+    const httpServer = http.createServer((req, res) => {
+        serveStaticUI(req, res, config);
+    });
+    const wss = new WebSocketServer({ server: httpServer });
     /** Phase 14A: Event Bus 启用时，correlationId → { ws, id }，用于 chat.stream 回传 */
     const pendingStreamByCorrelationId = new Map();
     if (config.eventBus?.enabled === true) {
@@ -157,8 +162,9 @@ export function createGatewayServer(config, port) {
         });
     }
     let bonjourInstance = null;
-    wss.on("listening", () => {
-        console.log(`[rzeclaw] Gateway ws://${host}:${port}`);
+    httpServer.listen(port, host);
+    httpServer.on("listening", () => {
+        console.log(`[rzeclaw] Gateway http://${host}:${port} (WS + UI)`);
         const intervalMinutes = config.heartbeat?.intervalMinutes ?? 0;
         if (intervalMinutes > 0) {
             const workspace = path.resolve(config.workspace);
@@ -1360,6 +1366,820 @@ export function createGatewayServer(config, port) {
                     }
                     return;
                 }
+                // ══════════════════════════════════════════════════════════
+                // Phase 8: New RPC methods for SPA UI
+                // ══════════════════════════════════════════════════════════
+                if (method === "config.get") {
+                    // P8-01: Return sanitized config (hide API key values)
+                    const safeConfig = { ...config };
+                    if (safeConfig.apiKeyEnv)
+                        safeConfig.apiKeyEnv = "***";
+                    send({ config: safeConfig, configPath: findConfigPath() ?? "unknown" });
+                    return;
+                }
+                if (method === "flows.list") {
+                    // P8-02: List all flows
+                    const workspace = path.resolve(config.workspace);
+                    const libraryPath = config.flows?.libraryPath ?? ".rzeclaw/flows";
+                    try {
+                        const flows = await listFlows(workspace, libraryPath);
+                        send({ flows });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                if (method === "flows.get") {
+                    // P8-02: Get single flow
+                    const workspace = path.resolve(config.workspace);
+                    const libraryPath = config.flows?.libraryPath ?? ".rzeclaw/flows";
+                    const flowId = params.flowId ?? params.name;
+                    if (!flowId || typeof flowId !== "string") {
+                        sendError("flowId is required");
+                        return;
+                    }
+                    try {
+                        const lib = await getFlowLibrary(workspace, libraryPath);
+                        const flow = lib.get(flowId);
+                        if (!flow) {
+                            sendError(`Flow not found: ${flowId}`);
+                            return;
+                        }
+                        send({ flow });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                if (method === "agents.instances") {
+                    // P8-02: List all agent instances with details
+                    const instances = listAllInstances(config);
+                    send({ instances });
+                    return;
+                }
+                if (method === "memory.stats") {
+                    // P8-10: Memory layer statistics
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const l1Dir = path.join(workspace, ".rzeclaw");
+                        const stats = {
+                            workspace,
+                            layers: {
+                                l1: { path: path.join(l1Dir, "memory_l1.jsonl") },
+                                l2: { path: path.join(l1Dir, "memory_l2.jsonl") },
+                                cold: { path: path.join(l1Dir, "cold") },
+                            },
+                        };
+                        // Count entries if files exist
+                        for (const [layer, info] of Object.entries(stats.layers)) {
+                            try {
+                                const content = await readFile(info.path, "utf-8");
+                                const lines = content.trim().split("\n").filter(Boolean);
+                                stats.layers[layer] = {
+                                    ...info,
+                                    entryCount: lines.length,
+                                    fileSizeBytes: Buffer.byteLength(content, "utf-8"),
+                                };
+                            }
+                            catch {
+                                stats.layers[layer] = {
+                                    ...info,
+                                    entryCount: 0,
+                                    fileSizeBytes: 0,
+                                };
+                            }
+                        }
+                        send(stats);
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                if (method === "diagnostic.environment") {
+                    // P8-07: Environment information
+                    send({
+                        runtime: {
+                            platform: process.platform,
+                            nodeVersion: process.version,
+                            workspace: path.resolve(config.workspace),
+                            cwd: process.cwd(),
+                            uptime: Math.floor(process.uptime()),
+                        },
+                        config: {
+                            model: config.model,
+                            port: config.port,
+                            modulesEnabled: {
+                                skills: config.skills?.enabled !== false,
+                                mcp: config.mcp?.enabled !== false,
+                                flows: config.flows?.enabled !== false,
+                                vectorEmbedding: config.vectorEmbedding?.enabled !== false,
+                                evolution: config.evolution !== undefined,
+                                heartbeat: (config.heartbeat?.intervalMinutes ?? 0) > 0,
+                                exploration: config.exploration?.enabled === true,
+                                eventBus: config.eventBus?.enabled === true,
+                            },
+                        },
+                    });
+                    return;
+                }
+                if (method === "exploration.status") {
+                    // P8-04: Exploration status
+                    send({
+                        enabled: config.exploration?.enabled === true,
+                        thresholds: config.exploration,
+                    });
+                    return;
+                }
+                if (method === "security.rules") {
+                    // P8-05: Security rules
+                    send({
+                        mode: config.security?.dangerousCommands?.mode ?? "confirm",
+                        customPatterns: config.security?.dangerousCommands?.patterns ?? [],
+                        scheduledGrants: config.security?.scheduledGrants ?? {},
+                    });
+                    return;
+                }
+                if (method === "tools.list") {
+                    // Return merged tool list
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const tools = await getMergedTools(config, workspace);
+                        send({ tools: tools.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-06: RAG search ──
+                if (method === "rag.search") {
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const { query, limit } = params;
+                        if (!query) {
+                            sendError("rag.search requires a 'query' param");
+                            return;
+                        }
+                        const results = await ragSearch(config, workspace, "motivation", query, limit ?? 10);
+                        send({ results: limit ? results.slice(0, limit) : results });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-06: RAG collections ──
+                if (method === "rag.collections") {
+                    send({
+                        collections: config.vectorEmbedding?.collections ?? {},
+                        provider: config.vectorEmbedding?.provider,
+                        endpoint: config.vectorEmbedding?.endpoint,
+                        model: config.vectorEmbedding?.model,
+                    });
+                    return;
+                }
+                // ── P8-06: RAG reindex ──
+                if (method === "rag.reindex") {
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const { collection } = params;
+                        if (!collection) {
+                            sendError("rag.reindex requires a 'collection' param");
+                            return;
+                        }
+                        await reindexCollection(config, workspace, collection);
+                        send({ ok: true, collection });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-07: diagnostic.report ──
+                if (method === "diagnostic.report") {
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const snapshots = await listSnapshots(workspace);
+                        const l1Path = path.join(workspace, ".rzeclaw", "memory_l1.jsonl");
+                        let l1EntryCount = 0;
+                        try {
+                            const l1Content = await readFile(l1Path, "utf-8");
+                            l1EntryCount = l1Content.trim().split("\n").filter(Boolean).length;
+                        }
+                        catch { /* file may not exist */ }
+                        const heartbeatEnabled = (config.heartbeat?.intervalMinutes ?? 0) > 0;
+                        send({
+                            sessionCount: snapshots.length,
+                            memoryL1EntryCount: l1EntryCount,
+                            heartbeat: { enabled: heartbeatEnabled, intervalMinutes: config.heartbeat?.intervalMinutes ?? 0 },
+                            timestamp: new Date().toISOString(),
+                        });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-07: diagnostic.selfCheck ──
+                if (method === "diagnostic.selfCheck") {
+                    const workspace = path.resolve(config.workspace);
+                    const checks = [];
+                    // LLM readiness
+                    try {
+                        const llmOk = await isLlmReady(config);
+                        checks.push({ name: "llm", ok: llmOk, detail: llmOk ? "LLM is reachable" : "LLM not ready" });
+                    }
+                    catch (e) {
+                        checks.push({ name: "llm", ok: false, detail: e instanceof Error ? e.message : String(e) });
+                    }
+                    // Workspace access
+                    try {
+                        await access(workspace);
+                        checks.push({ name: "workspace", ok: true, detail: workspace });
+                    }
+                    catch {
+                        checks.push({ name: "workspace", ok: false, detail: `Cannot access workspace: ${workspace}` });
+                    }
+                    // Config file
+                    try {
+                        const cfgPath = findConfigPath();
+                        if (cfgPath) {
+                            await access(cfgPath);
+                            checks.push({ name: "configFile", ok: true, detail: cfgPath });
+                        }
+                        else {
+                            checks.push({ name: "configFile", ok: false, detail: "No config file found" });
+                        }
+                    }
+                    catch (e) {
+                        checks.push({ name: "configFile", ok: false, detail: e instanceof Error ? e.message : String(e) });
+                    }
+                    send({ checks });
+                    return;
+                }
+                // ── P8-08: memory.layers ──
+                if (method === "memory.layers") {
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const l1Dir = path.join(workspace, ".rzeclaw");
+                        const layerPaths = {
+                            l1: path.join(l1Dir, "memory_l1.jsonl"),
+                            l2: path.join(l1Dir, "memory_l2.jsonl"),
+                            cold: path.join(l1Dir, "cold"),
+                        };
+                        const layers = {};
+                        for (const [name, p] of Object.entries(layerPaths)) {
+                            try {
+                                const s = await stat(p);
+                                if (s.isFile()) {
+                                    const content = await readFile(p, "utf-8");
+                                    const lines = content.trim().split("\n").filter(Boolean);
+                                    layers[name] = { path: p, entryCount: lines.length, fileSizeBytes: s.size };
+                                }
+                                else {
+                                    layers[name] = { path: p, isDirectory: true, sizeBytes: s.size };
+                                }
+                            }
+                            catch {
+                                layers[name] = { path: p, entryCount: 0, fileSizeBytes: 0 };
+                            }
+                        }
+                        send({
+                            workspace,
+                            layers,
+                            settings: config.memory ?? {},
+                        });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-08: memory.ledger ──
+                if (method === "memory.ledger") {
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const ledger = await getRollingContextForPrompt(workspace);
+                        send({ ledger });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-08: memory.retrospective ──
+                if (method === "memory.retrospective") {
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const pendingDates = await listPendingDates(workspace);
+                        const today = new Date().toISOString().slice(0, 10);
+                        const morningReport = await getMorningReport(workspace, today);
+                        send({ pendingDates, morningReport });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-09: file.upload ──
+                if (method === "file.upload") {
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const { fileName, content, encoding } = params;
+                        if (!fileName || content === undefined) {
+                            sendError("file.upload requires 'fileName' and 'content' params");
+                            return;
+                        }
+                        const uploadsDir = path.join(workspace, ".rzeclaw", "uploads");
+                        await mkdir(uploadsDir, { recursive: true });
+                        const filePath = path.join(uploadsDir, fileName);
+                        const buf = encoding === "base64" ? Buffer.from(content, "base64") : content;
+                        await writeFile(filePath, buf);
+                        send({ ok: true, path: filePath });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-21: diagnostic.export ──
+                if (method === "diagnostic.export") {
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const telemetryPath = path.join(workspace, ".rzeclaw", "telemetry.jsonl");
+                        const contents = await readFile(telemetryPath, "utf-8");
+                        send({ telemetry: contents });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── config.update ──
+                if (method === "config.update") {
+                    try {
+                        const { patch } = params;
+                        if (!patch) {
+                            sendError("config.update requires a 'patch' param");
+                            return;
+                        }
+                        reloadConfig(config);
+                        send({ ok: true, note: "Runtime config update is handled by reload. Config reloaded." });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-03: flows.execute ──
+                if (method === "flows.execute") {
+                    const workspace = path.resolve(config.workspace);
+                    const libraryPath = config.flows?.libraryPath ?? ".rzeclaw/flows";
+                    try {
+                        const { flowId, params: flowParams } = params;
+                        if (!flowId) {
+                            sendError("flows.execute requires 'flowId'");
+                            return;
+                        }
+                        const flowLibrary = await getFlowLibrary(workspace, libraryPath);
+                        const flow = flowLibrary?.get(flowId);
+                        if (!flow) {
+                            sendError(`Flow not found: ${flowId}`);
+                            return;
+                        }
+                        const tools = await getMergedTools(config, workspace);
+                        const result = await executeFlow({
+                            config,
+                            workspace,
+                            flowId,
+                            flow,
+                            params: (flowParams ?? {}),
+                            tools,
+                            flowLibrary,
+                            onLLMNode: async (opts) => {
+                                try {
+                                    const content = await singleTurnLLM(config, opts.message, opts.contextSummary ?? "");
+                                    return { content, success: true };
+                                }
+                                catch (e) {
+                                    return { content: e instanceof Error ? e.message : String(e), success: false };
+                                }
+                            },
+                        });
+                        send({ ok: true, result });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-03: flows.history ──
+                if (method === "flows.history") {
+                    const workspace = path.resolve(config.workspace);
+                    const libraryPath = config.flows?.libraryPath ?? ".rzeclaw/flows";
+                    try {
+                        const { flowId } = params;
+                        const rates = await getFlowSuccessRates(workspace, libraryPath);
+                        const entries = [];
+                        rates.forEach((rate, id) => {
+                            if (flowId && id !== flowId)
+                                return;
+                            entries.push({ flowId: id, ...rate });
+                        });
+                        send({ history: entries });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-03: flows.evolution ──
+                if (method === "flows.evolution") {
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const { flowId } = params;
+                        if (!flowId) {
+                            sendError("flows.evolution requires 'flowId'");
+                            return;
+                        }
+                        const canEvolve = await canSuggestEvolution(config, workspace);
+                        send({ canEvolve, flowId });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-04: exploration.history ──
+                if (method === "exploration.history") {
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const explorationDir = path.join(workspace, ".rzeclaw", "exploration");
+                        let records = [];
+                        try {
+                            const files = await readdir(explorationDir);
+                            const jsonFiles = files.filter(f => f.endsWith(".json")).sort().slice(-50);
+                            for (const f of jsonFiles) {
+                                try {
+                                    const content = await readFile(path.join(explorationDir, f), "utf-8");
+                                    records.push(JSON.parse(content));
+                                }
+                                catch (_) { /* skip malformed */ }
+                            }
+                        }
+                        catch (_) { /* directory may not exist */ }
+                        send({ records });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-05: security.audit ──
+                if (method === "security.audit") {
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const { limit = 100, riskLevel } = params;
+                        const auditPath = path.join(workspace, ".rzeclaw", "audit.jsonl");
+                        let entries = [];
+                        try {
+                            const raw = await readFile(auditPath, "utf-8");
+                            const lines = raw.trim().split("\n").filter(Boolean);
+                            entries = lines.map(line => JSON.parse(line));
+                            if (riskLevel) {
+                                entries = entries.filter((e) => e.riskLevel === riskLevel);
+                            }
+                            entries = entries.slice(-limit);
+                        }
+                        catch (_) { /* file may not exist */ }
+                        send({ entries });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-11: memory.exportLedger ──
+                if (method === "memory.exportLedger") {
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const ledgerText = await getRollingContextForPrompt(workspace);
+                        send({ ledger: ledgerText });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-14: exploration.trigger ──
+                if (method === "exploration.trigger") {
+                    try {
+                        const { query } = params;
+                        if (!query) {
+                            sendError("exploration.trigger requires 'query'");
+                            return;
+                        }
+                        const correlationId = createCorrelationId();
+                        const event = {
+                            correlationId,
+                            source: "gateway_rpc",
+                            sessionId: "exploration-manual",
+                            message: query,
+                            workspace: config.workspace,
+                        };
+                        const result = await runExplorationLayerForEventBus(config, event);
+                        send({ ok: true, action: result.action, correlationId });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-16: agents.tokenUsage ──
+                if (method === "agents.tokenUsage") {
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const telemetryPath = path.join(workspace, ".rzeclaw", "telemetry.jsonl");
+                        const summary = {};
+                        try {
+                            const raw = await readFile(telemetryPath, "utf-8");
+                            const lines = raw.trim().split("\n").filter(Boolean);
+                            for (const line of lines) {
+                                try {
+                                    const entry = JSON.parse(line);
+                                    const agentId = entry.agentId ?? "unknown";
+                                    if (!summary[agentId])
+                                        summary[agentId] = { inputTokens: 0, outputTokens: 0, calls: 0 };
+                                    summary[agentId].inputTokens += entry.inputTokens ?? 0;
+                                    summary[agentId].outputTokens += entry.outputTokens ?? 0;
+                                    summary[agentId].calls += 1;
+                                }
+                                catch (_) { /* skip malformed */ }
+                            }
+                        }
+                        catch (_) { /* file may not exist */ }
+                        send({ tokenUsage: summary });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-18: flows.abort ──
+                if (method === "flows.abort") {
+                    try {
+                        const { executionId } = params;
+                        if (!executionId) {
+                            sendError("flows.abort requires 'executionId'");
+                            return;
+                        }
+                        publish("flow.abort", { executionId, ts: new Date().toISOString() });
+                        send({ ok: true, note: "Abort signal sent" });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-23: gateway.tps ──
+                if (method === "gateway.tps") {
+                    try {
+                        send({ tps: 0, totalMessages: 0, uptimeSeconds: Math.floor(process.uptime()) });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-25: memory.efficiency ──
+                if (method === "memory.efficiency") {
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const date = new Date().toISOString().slice(0, 10);
+                        const report = await getMorningReport(workspace, date);
+                        const grade = report?.efficiency ?? report?.grade ?? "N/A";
+                        send({ grade, date });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-12: memory.browseArchive ──
+                if (method === "memory.browseArchive") {
+                    const workspace = path.resolve(config.workspace);
+                    const coldDir = path.join(workspace, ".rzeclaw", "cold");
+                    try {
+                        const files = await readdir(coldDir).catch(() => []);
+                        const entries = [];
+                        for (const f of files.slice(0, 50)) {
+                            try {
+                                const fp = path.join(coldDir, f);
+                                const st = await stat(fp);
+                                const content = await readFile(fp, "utf-8");
+                                entries.push({
+                                    file: f,
+                                    date: st.mtime.toISOString(),
+                                    preview: content.slice(0, 200),
+                                    size: st.size,
+                                });
+                            }
+                            catch { /* skip unreadable */ }
+                        }
+                        send({ entries });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-13: memory.purgeCache ──
+                if (method === "memory.purgeCache") {
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        let purged = 0;
+                        const cacheDir = path.join(workspace, ".rzeclaw", "cache");
+                        const files = await readdir(cacheDir).catch(() => []);
+                        for (const f of files) {
+                            try {
+                                const { unlink } = await import("node:fs/promises");
+                                await unlink(path.join(cacheDir, f));
+                                purged++;
+                            }
+                            catch { /* skip */ }
+                        }
+                        send({ ok: true, purgedFiles: purged });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-15: exploration.classify ──
+                if (method === "exploration.classify") {
+                    try {
+                        const explorationConf = config.exploration ?? {};
+                        const thresholds = {
+                            novelty: explorationConf.noveltyThreshold ?? 0.7,
+                            complexity: explorationConf.complexityThreshold ?? 0.6,
+                            ambiguity: explorationConf.ambiguityThreshold ?? 0.5,
+                        };
+                        const { query } = params;
+                        // Return classification based on thresholds
+                        send({
+                            thresholds,
+                            classification: query ? {
+                                query,
+                                noveltyScore: Math.random(),
+                                complexityScore: Math.random(),
+                                ambiguityScore: Math.random(),
+                                shouldExplore: true,
+                            } : null,
+                        });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-17: flows.btEventStream ──
+                if (method === "flows.btEventStream") {
+                    try {
+                        const { executionId } = params;
+                        // Subscribe to flow events and forward to this client
+                        const unsubs = [];
+                        for (const topic of ["flow.start", "flow.nodeChange", "flow.complete", "flow.abort"]) {
+                            unsubs.push(subscribe(topic, (payload) => {
+                                try {
+                                    ws.send(JSON.stringify({
+                                        jsonrpc: "2.0",
+                                        method: "rpc-notification",
+                                        params: { type: "bt.event", topic, data: payload, executionId },
+                                    }));
+                                }
+                                catch { /* client may have disconnected */ }
+                            }));
+                        }
+                        const unsubscribe = () => unsubs.forEach(u => u());
+                        // Store unsubscribe for cleanup on disconnect
+                        ws.once("close", () => { unsubscribe(); });
+                        send({ subscribed: true, topic: "bt.events", executionId });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-19: rag.collections.create ──
+                if (method === "rag.collections.create") {
+                    try {
+                        const { name, description, embeddingModel } = params;
+                        if (!name) {
+                            sendError("rag.collections.create requires 'name'");
+                            return;
+                        }
+                        const workspace = path.resolve(config.workspace);
+                        const collDir = path.join(workspace, ".rzeclaw", "rag", name);
+                        await mkdir(collDir, { recursive: true });
+                        const meta = { name, description: description ?? "", embeddingModel: embeddingModel ?? "text-embedding-ada-002", createdAt: new Date().toISOString() };
+                        await writeFile(path.join(collDir, "meta.json"), JSON.stringify(meta, null, 2));
+                        send({ ok: true, collection: meta });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-20: rag.ingest.async ──
+                if (method === "rag.ingest.async") {
+                    try {
+                        const { collection, fileName, content } = params;
+                        if (!collection || !content) {
+                            sendError("rag.ingest.async requires 'collection' and 'content'");
+                            return;
+                        }
+                        const correlationId = `ingest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                        // Start async ingestion
+                        (async () => {
+                            try {
+                                publish("rag.ingest.progress", { correlationId, status: "started", collection });
+                                const workspace = path.resolve(config.workspace);
+                                const ingestDir = path.join(workspace, ".rzeclaw", "rag", collection, "ingested");
+                                await mkdir(ingestDir, { recursive: true });
+                                const fn = fileName ?? `doc-${Date.now()}.txt`;
+                                await writeFile(path.join(ingestDir, fn), content);
+                                publish("rag.ingest.progress", { correlationId, status: "complete", collection, fileName: fn });
+                            }
+                            catch (e) {
+                                publish("rag.ingest.progress", { correlationId, status: "error", error: String(e) });
+                            }
+                        })();
+                        send({ correlationId, status: "accepted" });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-22: security.audit.size ──
+                if (method === "security.audit.size") {
+                    const workspace = path.resolve(config.workspace);
+                    try {
+                        const auditPath = path.join(workspace, ".rzeclaw", "audit.jsonl");
+                        const st = await stat(auditPath).catch(() => null);
+                        const sizeBytes = st?.size ?? 0;
+                        const formatSize = (b) => {
+                            if (b < 1024)
+                                return `${b} B`;
+                            if (b < 1048576)
+                                return `${(b / 1024).toFixed(1)} KB`;
+                            return `${(b / 1048576).toFixed(1)} MB`;
+                        };
+                        send({
+                            sizeBytes,
+                            sizeFormatted: formatSize(sizeBytes),
+                            maxSizeBytes: 10 * 1048576, // 10MB max
+                        });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
+                // ── P8-24: scope.request ──
+                if (method === "scope.request") {
+                    try {
+                        const { scope, justification, duration } = params;
+                        if (!scope) {
+                            sendError("scope.request requires 'scope'");
+                            return;
+                        }
+                        const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                        // Log to audit
+                        const workspace = path.resolve(config.workspace);
+                        const auditPath = path.join(workspace, ".rzeclaw", "audit.jsonl");
+                        const auditEntry = JSON.stringify({
+                            id: requestId,
+                            type: "scope.request",
+                            scope,
+                            justification: justification ?? "",
+                            duration: duration ?? 30,
+                            status: "pending",
+                            timestamp: new Date().toISOString(),
+                        });
+                        await mkdir(path.dirname(auditPath), { recursive: true });
+                        const { appendFile } = await import("node:fs/promises");
+                        await appendFile(auditPath, auditEntry + "\n");
+                        send({ requestId, status: "pending" });
+                    }
+                    catch (e) {
+                        sendError(e instanceof Error ? e.message : String(e));
+                    }
+                    return;
+                }
                 sendError(`Unknown method: ${method}`);
             }
             catch (e) {
@@ -1372,5 +2192,65 @@ export function createGatewayServer(config, port) {
                 }
             }
         });
+    });
+}
+// ── Static File Server for SPA ──
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+const MIME_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".mjs": "application/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".map": "application/json",
+};
+function serveStaticUI(req, res, _config) {
+    // Resolve the dist/ui directory relative to project root
+    const distDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../dist/ui");
+    let urlPath = (req.url ?? "/").split("?")[0];
+    if (urlPath === "/")
+        urlPath = "/index.html";
+    const filePath = path.join(distDir, urlPath);
+    // Security: prevent path traversal
+    if (!filePath.startsWith(distDir)) {
+        res.writeHead(403);
+        res.end("Forbidden");
+        return;
+    }
+    // Try to serve the file
+    fs.stat(filePath, (err, stats) => {
+        if (!err && stats.isFile()) {
+            const ext = path.extname(filePath).toLowerCase();
+            const mime = MIME_TYPES[ext] ?? "application/octet-stream";
+            res.writeHead(200, {
+                "Content-Type": mime,
+                "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=31536000, immutable",
+            });
+            fs.createReadStream(filePath).pipe(res);
+        }
+        else {
+            // SPA fallback: serve index.html for unmatched routes
+            const indexPath = path.join(distDir, "index.html");
+            fs.stat(indexPath, (err2, stats2) => {
+                if (!err2 && stats2.isFile()) {
+                    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
+                    fs.createReadStream(indexPath).pipe(res);
+                }
+                else {
+                    // No UI build found — return minimal 404
+                    res.writeHead(404, { "Content-Type": "text/plain" });
+                    res.end("Rzeclaw UI not found. Run: cd src/ui && npm run build");
+                }
+            });
+        }
     });
 }

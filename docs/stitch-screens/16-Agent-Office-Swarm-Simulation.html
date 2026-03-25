@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RZECLAW | Agent Office</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-low": "#131313",
+              "inverse-surface": "#fcf9f8",
+              "on-surface-variant": "#adaaaa",
+              "tertiary": "#ffa5d9",
+              "secondary": "#53ddfc",
+              "on-tertiary-container": "#63054a",
+              "on-error-container": "#ffb2b9",
+              "on-secondary-container": "#ecfaff",
+              "on-error": "#490013",
+              "tertiary-fixed": "#ff8ed2",
+              "error-dim": "#d73357",
+              "primary-dim": "#6063ee",
+              "on-tertiary": "#701455",
+              "secondary-fixed-dim": "#48d4f3",
+              "secondary-dim": "#40ceed",
+              "on-surface": "#ffffff",
+              "on-secondary": "#004b58",
+              "on-secondary-fixed-variant": "#005969",
+              "on-background": "#ffffff",
+              "background": "#0e0e0e",
+              "tertiary-fixed-dim": "#ef81c4",
+              "primary-fixed": "#9396ff",
+              "on-primary-fixed-variant": "#0e009d",
+              "surface": "#0e0e0e",
+              "tertiary-container": "#ff8ed2",
+              "on-tertiary-fixed": "#3b002b",
+              "outline-variant": "#484847",
+              "inverse-on-surface": "#565555",
+              "surface-container-highest": "#262626",
+              "secondary-container": "#00687a",
+              "on-primary-container": "#0a0081",
+              "surface-container-high": "#20201f",
+              "primary-container": "#9396ff",
+              "on-primary-fixed": "#000000",
+              "on-tertiary-fixed-variant": "#6e1354",
+              "error-container": "#a70138",
+              "error": "#ff6e84",
+              "surface-container": "#1a1a1a",
+              "on-secondary-fixed": "#003a45",
+              "outline": "#767575",
+              "surface-tint": "#a3a6ff",
+              "surface-bright": "#2c2c2c",
+              "primary": "#a3a6ff",
+              "primary-fixed-dim": "#8387ff",
+              "inverse-primary": "#494bd7",
+              "on-primary": "#0f00a4",
+              "tertiary-dim": "#ef81c4",
+              "surface-container-lowest": "#000000",
+              "surface-dim": "#0e0e0e",
+              "secondary-fixed": "#65e1ff",
+              "surface-variant": "#262626"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"],
+              "mono": ["JetBrains Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .pixel-grid {
+            background-size: 40px 40px;
+            background-image: 
+                linear-gradient(to right, #262626 1px, transparent 1px),
+                linear-gradient(to bottom, #262626 1px, transparent 1px);
+        }
+        .isometric-view {
+            transform: rotateX(45deg) rotateZ(-45deg);
+            transform-style: preserve-3d;
+        }
+        .ai-pulse-bar {
+            height: 2px;
+            width: 100%;
+            background: linear-gradient(90deg, #a3a6ff, #53ddfc, #a3a6ff);
+            background-size: 200% 100%;
+        }
+        .glass-panel {
+            backdrop-filter: blur(12px);
+            background: rgba(26, 26, 26, 0.8);
+        }
+        .pixel-art-filter {
+            image-rendering: pixelated;
+        }
+    </style>
+</head>
+<body class="bg-surface-dim text-on-surface font-body selection:bg-primary selection:text-on-primary">
+<!-- TopAppBar -->
+<nav class="fixed top-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-[#0e0e0e]">
+<div class="flex items-center gap-8">
+<span class="text-xl font-black tracking-tighter text-white dark:text-[#ffffff] font-headline">RZECLAW</span>
+<div class="hidden md:flex gap-6">
+<a class="font-['Manrope'] tracking-tight text-sm uppercase font-bold text-[#a3a6ff] border-b-2 border-[#a3a6ff] pb-1" href="#">Workspace</a>
+<a class="font-['Manrope'] tracking-tight text-sm uppercase font-bold text-[#adaaaa] hover:text-white transition-colors" href="#">Neural Map</a>
+<a class="font-['Manrope'] tracking-tight text-sm uppercase font-bold text-[#adaaaa] hover:text-white transition-colors" href="#">Archives</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex gap-2">
+<button class="p-2 hover:bg-[#20201f] transition-all duration-300 rounded text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">terminal</span>
+</button>
+<button class="p-2 hover:bg-[#20201f] transition-all duration-300 rounded text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">memory</span>
+</button>
+<button class="p-2 hover:bg-[#20201f] transition-all duration-300 rounded text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+</button>
+</div>
+<button class="bg-gradient-to-br from-primary to-primary-dim text-on-primary-fixed px-4 py-1.5 rounded-lg text-sm font-bold tracking-tight hover:opacity-90 transition-all active:scale-95">
+                Deploy Agent
+            </button>
+</div>
+<div class="absolute bottom-0 left-0 bg-gradient-to-r from-transparent via-[#262626] to-transparent h-[1px] w-full"></div>
+</nav>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-64 flex flex-col pt-16 z-40 bg-[#1a1a1a] border-r border-outline-variant/10">
+<div class="p-6 border-b border-outline-variant/10">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-secondary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">hub</span>
+</div>
+<div>
+<h2 class="text-lg font-bold text-[#ffffff] font-headline tracking-tight">MONOLITH_OS</h2>
+<p class="text-[10px] text-secondary font-mono uppercase tracking-widest opacity-70">v4.0.2-stable</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 py-4">
+<a class="bg-[#262626] text-[#53ddfc] border-r-2 border-[#53ddfc] flex items-center px-4 py-3 gap-3 font-['Inter'] text-[11px] font-medium tracking-wide uppercase" href="#">
+<span class="material-symbols-outlined text-lg">desktop_windows</span>
+<span>Workspace</span>
+</a>
+<a class="text-[#adaaaa] flex items-center px-4 py-3 gap-3 hover:bg-[#20201f] transition-colors font-['Inter'] text-[11px] font-medium tracking-wide uppercase" href="#">
+<span class="material-symbols-outlined text-lg">receipt_long</span>
+<span>Agent Logs</span>
+</a>
+<a class="text-[#adaaaa] flex items-center px-4 py-3 gap-3 hover:bg-[#20201f] transition-colors font-['Inter'] text-[11px] font-medium tracking-wide uppercase" href="#">
+<span class="material-symbols-outlined text-lg">hub</span>
+<span>Neural Map</span>
+</a>
+<a class="text-[#adaaaa] flex items-center px-4 py-3 gap-3 hover:bg-[#20201f] transition-colors font-['Inter'] text-[11px] font-medium tracking-wide uppercase" href="#">
+<span class="material-symbols-outlined text-lg">inventory_2</span>
+<span>Archives</span>
+</a>
+<a class="text-[#adaaaa] flex items-center px-4 py-3 gap-3 hover:bg-[#20201f] transition-colors font-['Inter'] text-[11px] font-medium tracking-wide uppercase" href="#">
+<span class="material-symbols-outlined text-lg">settings_input_component</span>
+<span>System</span>
+</a>
+</nav>
+<div class="p-4 mt-auto border-t border-outline-variant/10 space-y-1">
+<a class="text-[#adaaaa] flex items-center px-4 py-2 gap-3 hover:text-white transition-colors text-[11px] font-medium uppercase tracking-wide" href="#">
+<span class="material-symbols-outlined text-sm">help</span>
+<span>Documentation</span>
+</a>
+<a class="text-[#adaaaa] flex items-center px-4 py-2 gap-3 hover:text-white transition-colors text-[11px] font-medium uppercase tracking-wide" href="#">
+<span class="material-symbols-outlined text-sm">contact_support</span>
+<span>Support</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-64 pt-16 h-screen flex overflow-hidden">
+<!-- Left Section: The Office Grid -->
+<div class="flex-1 relative overflow-hidden bg-surface-container-low flex flex-col">
+<div class="ai-pulse-bar"></div>
+<header class="px-6 py-4 flex justify-between items-center border-b border-outline-variant/10">
+<div>
+<h1 class="font-headline font-extrabold text-xl text-on-surface tracking-tight">AGENT_OFFICE_INSTANCE_01</h1>
+<p class="text-[11px] font-mono text-on-surface-variant uppercase tracking-[0.2em]">Runtime: Active | Node: Local_Swarm</p>
+</div>
+<div class="flex gap-2">
+<button class="bg-surface-container-high hover:bg-surface-container-highest text-secondary text-[11px] px-3 py-1.5 rounded font-bold uppercase tracking-widest border border-secondary/20 transition-all">
+                        Reorganize Workspace
+                    </button>
+<button class="bg-surface-container-high hover:bg-surface-container-highest text-primary text-[11px] px-3 py-1.5 rounded font-bold uppercase tracking-widest border border-primary/20 transition-all">
+                        Sync Swarm State
+                    </button>
+</div>
+</header>
+<!-- Office Simulation Area -->
+<div class="flex-1 relative flex items-center justify-center p-8">
+<div class="absolute inset-0 pixel-grid opacity-20"></div>
+<!-- Pixel Art Office Canvas -->
+<div class="relative w-[800px] h-[500px] bg-surface-container border border-outline-variant/20 rounded shadow-2xl overflow-hidden flex items-center justify-center">
+<!-- Isometric Simulation Layer -->
+<div class="isometric-view w-[600px] h-[600px] relative">
+<!-- Strategy Room Area -->
+<div class="absolute top-0 left-0 w-48 h-48 bg-primary/5 border border-primary/20 flex items-end p-2">
+<span class="text-[10px] font-mono text-primary opacity-50 uppercase">Strategy Room</span>
+</div>
+<!-- Development Hub Area -->
+<div class="absolute bottom-0 right-0 w-64 h-64 bg-secondary/5 border border-secondary/20 flex items-start p-2">
+<span class="text-[10px] font-mono text-secondary opacity-50 uppercase">Dev Hub</span>
+</div>
+<!-- Memory Vault -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-tertiary/5 border border-tertiary/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-tertiary opacity-40 text-4xl">database</span>
+</div>
+<!-- Pixel Agents (Static representations for UI) -->
+<!-- Analyst -->
+<div class="absolute top-20 left-40 transform translate-z-10 flex flex-col items-center">
+<div class="bg-secondary p-1 mb-2 rounded shadow-lg shadow-secondary/40">
+<img class="w-8 h-8 pixel-art-filter" data-alt="Small 2D pixel art character of an analyst agent" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDL30SqYRtM-eSGb0lYbDwAbvakxevE4fx9ilopUAHxCQCPBnicRxh0AE506ZDqP9OZOWw_u4S-R6w7rcZpDMi5gTcTdLm5NKcI1_nO_CBSpF5wyiawKHq6RwFljyTVBC7m6fDREXT1WSO_VkSgKAYOarBWNLtxxr3djfY01kDHOeiWFBKct0rzMMJM2U78UpKU4wtMVeBPfT_thoFRim2oEes3eD7b2jcKfJWogIHl64Mg7fFOcm6W39m5aOYEyAKJevBrG7WWgg0"/>
+</div>
+<div class="glass-panel px-2 py-1 rounded text-[9px] font-mono border border-secondary/30 text-white whitespace-nowrap">
+<span class="text-secondary">●</span> ANALYST: <span class="animate-pulse">Thinking...</span>
+</div>
+</div>
+<!-- Researcher -->
+<div class="absolute bottom-32 right-24 transform translate-z-10 flex flex-col items-center">
+<div class="bg-primary p-1 mb-2 rounded shadow-lg shadow-primary/40">
+<img class="w-8 h-8 pixel-art-filter" data-alt="Small 2D pixel art character of a researcher agent" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCTgdogb1kLhrHw_WmudnqGA5-ndDdjY9iTLeS23sBPJk7lVqXjtT4HlUVzXs_gtbLReUIpG_ZIqNCu3ZtpMVdHGPqF8v_sl6dzCiFHq3dtY2b6fTztMoDAh7hKNv7b0U8AZbJJaDOZ_snZ9dwGTfcttXDR-rZuKBs19KRsukuq0xRD4M7klkwX_jLvEnchpHPUSZXAu1MoDo3nk3Sy4cMNpMv-RIeG3I0LPJmk3Ywb6lwrYVdjd59R3wV2lz5B7_2AOJb4eiN1aeg"/>
+</div>
+<div class="glass-panel px-2 py-1 rounded text-[9px] font-mono border border-primary/30 text-white whitespace-nowrap">
+<span class="text-primary">●</span> RESEARCHER: <span class="text-on-surface-variant">Indexing Web</span>
+</div>
+</div>
+<!-- Critic -->
+<div class="absolute top-40 right-40 transform translate-z-10 flex flex-col items-center">
+<div class="bg-error p-1 mb-2 rounded shadow-lg shadow-error/40">
+<img class="w-8 h-8 pixel-art-filter" data-alt="Small 2D pixel art character of a critic agent" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAnReG4wLk-Jn3TfVurDcvYM0ASVHPUaV3BRylB7sNMLF67u17lFFs0hM-mZtp4_P1PmdBOE7aR38EAmBggAW4UpMieMn_22K34tVpnP9MDRtsYESYzlc2T6680AXsX3bjifXxUE2yyQZeuGBLhNJ8TDRLCpsbVBRns-dZWZtMz4DxNjtVA8fUcw9GZKewRo6NFa5JIkZDn1s5Dg4rZttc8S_Pyqs8CU30axvaCX2J_tonq-n8kGJB9MnQnD188AOWnemdIVqu_gag"/>
+</div>
+<div class="glass-panel px-2 py-1 rounded text-[9px] font-mono border border-error/30 text-white whitespace-nowrap">
+<span class="text-error">●</span> CRITIC: <span class="text-on-surface-variant">Executing Bash</span>
+</div>
+</div>
+</div>
+<!-- Overlay Technical Elements -->
+<div class="absolute top-4 left-4 font-mono text-[10px] text-on-surface-variant space-y-1">
+<div>VIEW_PORT: [ISO_72_DEFAULT]</div>
+<div>SIM_TICK: 14,029</div>
+</div>
+<div class="absolute bottom-4 right-4 font-mono text-[10px] text-secondary space-y-1 text-right">
+<div>GRID_LOCK: ON</div>
+<div>SWARM_ID: X-99</div>
+</div>
+</div>
+</div>
+<!-- Dashboard Footbar -->
+<footer class="p-4 bg-surface-container border-t border-outline-variant/10 flex items-center justify-between">
+<div class="flex gap-4">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+<span class="text-[10px] font-mono text-on-surface-variant uppercase">CPU: 24.5%</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-primary"></div>
+<span class="text-[10px] font-mono text-on-surface-variant uppercase">MEM: 4.2GB / 12GB</span>
+</div>
+</div>
+<div class="flex items-center gap-4 text-[10px] font-mono text-on-surface-variant uppercase">
+<span>Lat: 12ms</span>
+<span>Buffer: Stable</span>
+</div>
+</footer>
+</div>
+<!-- Right Section: Workspace Context Panel -->
+<div class="w-80 bg-surface-container-high border-l border-outline-variant/10 flex flex-col overflow-y-auto">
+<div class="p-6 space-y-8">
+<!-- System Status -->
+<section>
+<h3 class="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mb-4">Workspace Context</h3>
+<div class="space-y-4">
+<div class="bg-surface-container rounded p-4 border border-outline-variant/10">
+<div class="text-[10px] text-secondary font-bold uppercase mb-1">Active Goal</div>
+<p class="text-sm font-medium text-on-surface leading-snug">Architecting Multi-Chain Bridge Protocol for Agent Swarm Alpha</p>
+</div>
+<div class="grid grid-cols-2 gap-2">
+<div class="bg-surface-container-highest p-3 rounded text-center">
+<div class="text-[9px] text-on-surface-variant uppercase mb-1">Active Agents</div>
+<div class="text-xl font-headline font-black text-white">04</div>
+</div>
+<div class="bg-surface-container-highest p-3 rounded text-center">
+<div class="text-[9px] text-on-surface-variant uppercase mb-1">Swarm Health</div>
+<div class="text-xl font-headline font-black text-secondary">98%</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Active Agent List -->
+<section>
+<h3 class="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mb-4">Active in Room</h3>
+<div class="space-y-2">
+<!-- Agent Card -->
+<div class="bg-surface-container rounded p-3 flex items-center gap-3 group hover:bg-surface-container-highest transition-colors cursor-pointer">
+<div class="w-10 h-10 rounded bg-secondary/10 flex items-center justify-center">
+<img class="w-6 h-6 pixel-art-filter" data-alt="Pixel icon of an analyst agent" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBPntY5b3fdGNscS1_oEbF6AB8w1J7worcWfPQ3aEC4NIxmpwvf0uFHvAjN9GIh45NZoDK3EdsZDRJU6isbzrN_J6fSi4JDDedum6wpfCGJwtq2OWoyZRpRY-GOTGMOW5_uPNIPNy-W56IhRRn5iztjICDiNgVeX1sSYGH6iNQmFjKV5N8wdvoKwvN2V1vJQ36pVaGnvkgMoz1PmO2um6uZ9F07jYiTqBaZrFtZzoyeAiLjxc94dVvp8aM-C6fWZ9WGiYiHFYXauGE"/>
+</div>
+<div class="flex-1 overflow-hidden">
+<div class="flex justify-between items-center">
+<span class="text-xs font-bold text-white uppercase font-headline">Analyst_01</span>
+<span class="text-[9px] text-secondary uppercase font-mono">Busy</span>
+</div>
+<div class="text-[10px] text-on-surface-variant truncate">Task: Data Synthesis</div>
+</div>
+</div>
+<div class="bg-surface-container rounded p-3 flex items-center gap-3 group hover:bg-surface-container-highest transition-colors cursor-pointer">
+<div class="w-10 h-10 rounded bg-primary/10 flex items-center justify-center">
+<img class="w-6 h-6 pixel-art-filter" data-alt="Pixel icon of a researcher agent" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDg02-nQ0Pzeq2GEBNsY9Wu5GcG2tB-10-q96wa7eM5shBXWEt0LP2vjOTdjegZqDO4uB8MwkEa448ZFY-2l2-zpujmj2No3shdxlanews52npePhOBEY6_mj9EGnWrdcEN1_6HuVgkym3Tf_G5sZQ64SObqwT95Wp8B5youGhab6JnGGS5EbU7bvo65sy894ecrSrW-wadHsVl2zqkPVDsuskUYb0yOfETxNF90ncGy8LwuVdsXmM0g4okNi3kPhlTwf5CXJy2RPQ"/>
+</div>
+<div class="flex-1 overflow-hidden">
+<div class="flex justify-between items-center">
+<span class="text-xs font-bold text-white uppercase font-headline">Researcher_X</span>
+<span class="text-[9px] text-primary uppercase font-mono">Idle</span>
+</div>
+<div class="text-[10px] text-on-surface-variant truncate">Task: Indexing RFCs</div>
+</div>
+</div>
+<div class="bg-surface-container rounded p-3 flex items-center gap-3 group hover:bg-surface-container-highest transition-colors cursor-pointer">
+<div class="w-10 h-10 rounded bg-tertiary/10 flex items-center justify-center">
+<img class="w-6 h-6 pixel-art-filter" data-alt="Pixel icon of an architect agent" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD52LVer_mYgtxinMFJ0iqXThsMtD2UvRBsBeuItM1RrmMbgDeDjUqGmWguYxcAide8W-9rLkrWTFVPaqOsCoB8TG68d6nIWr7JT6yKMdMbO_j791xGEzMYLHoDOlJ0y5RpNEC2J4CxjmZ4dixH4_lQft_sruJZmKvT9HkaAgbXlrqh2Nv39enDCa67xDu32yetMQcBZYWwCiIAF436S2Zp4QgtWax9bm5kOuamMzypO4BGQkY9xbFMrxoTY9kUd04Q4f_km0-Xrc8"/>
+</div>
+<div class="flex-1 overflow-hidden">
+<div class="flex justify-between items-center">
+<span class="text-xs font-bold text-white uppercase font-headline">Architect_01</span>
+<span class="text-[9px] text-tertiary uppercase font-mono">Thinking</span>
+</div>
+<div class="text-[10px] text-on-surface-variant truncate">Task: System Layout</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Swarm Actions -->
+<section class="mt-auto">
+<button class="w-full bg-surface-container border border-outline-variant/20 hover:border-secondary/50 text-white font-headline font-bold text-xs uppercase tracking-[0.15em] py-3 rounded flex items-center justify-center gap-2 transition-all">
+<span class="material-symbols-outlined text-sm text-secondary">add_circle</span>
+                        Deploy New Node
+                    </button>
+<p class="mt-4 text-[9px] font-mono text-on-surface-variant text-center opacity-50">
+                        OFFICE_SESSION_ID: 9942-XKB-88
+                    </p>
+</section>
+</div>
+</div>
+</main>
+</body></html>

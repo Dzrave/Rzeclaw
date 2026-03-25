@@ -1,0 +1,189 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Rzeclaw Design Tokens — Material Design 3 Dark Theme
+   Extracted from Stitch UI designs (Screen 09 + cross-screen audit)
+   ============================================================ */
+
+@theme {
+  /* ─── Primary ─── */
+  --color-primary: #a3a6ff;
+  --color-primary-dim: #7c7fff;
+  --color-on-primary: #1a1b4e;
+  --color-primary-container: #2f3070;
+  --color-on-primary-container: #c5c6ff;
+
+  /* ─── Secondary ─── */
+  --color-secondary: #53ddfc;
+  --color-on-secondary: #003544;
+  --color-secondary-container: #004d62;
+  --color-on-secondary-container: #b8eaff;
+
+  /* ─── Tertiary ─── */
+  --color-tertiary: #ffa5d9;
+  --color-on-tertiary: #5c1142;
+  --color-tertiary-container: #7a2959;
+  --color-on-tertiary-container: #ffd7ec;
+
+  /* ─── Error ─── */
+  --color-error: #ff6e84;
+  --color-on-error: #690019;
+  --color-error-container: #93002a;
+  --color-on-error-container: #ffdadc;
+
+  /* ─── Warning (custom) ─── */
+  --color-warning: #ffb74d;
+  --color-on-warning: #3e2700;
+
+  /* ─── Success (custom) ─── */
+  --color-success: #66bb6a;
+  --color-on-success: #0d3d0f;
+
+  /* ─── Surface (Dark) ─── */
+  --color-surface: #121318;
+  --color-surface-dim: #121318;
+  --color-surface-bright: #38393f;
+  --color-surface-container-lowest: #0d0e13;
+  --color-surface-container-low: #1a1b21;
+  --color-surface-container: #1e1f25;
+  --color-surface-container-high: #282a30;
+  --color-surface-container-highest: #33353b;
+  --color-on-surface: #e3e2e9;
+  --color-on-surface-variant: #c6c5d0;
+  --color-outline: #908f9a;
+  --color-outline-variant: #46464f;
+
+  /* ─── Inverse ─── */
+  --color-inverse-surface: #e3e2e9;
+  --color-inverse-on-surface: #2f3036;
+  --color-inverse-primary: #4749a0;
+
+  /* ─── Scrim/Shadow ─── */
+  --color-shadow: rgba(0, 0, 0, 0.3);
+  --color-scrim: rgba(0, 0, 0, 0.5);
+
+  /* ─── Typography ─── */
+  --font-display: 'Manrope', sans-serif;
+  --font-headline: 'Manrope', sans-serif;
+  --font-title: 'Inter', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-label: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* ─── Spacing (4px base grid) ─── */
+  --spacing-0: 0px;
+  --spacing-0_5: 2px;
+  --spacing-1: 4px;
+  --spacing-1_5: 6px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+
+  /* ─── Border Radius ─── */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 28px;
+  --radius-full: 9999px;
+
+  /* ─── Layout Dimensions ─── */
+  --sidebar-width: 256px;
+  --sidebar-collapsed-width: 64px;
+  --topbar-height: 64px;
+  --statusbar-height: 32px;
+}
+
+/* ─── Light Theme Override (P2-17) ─── */
+[data-theme="light"] {
+  --color-surface: #fdfbff;
+  --color-surface-dim: #ddd9e0;
+  --color-surface-bright: #fdfbff;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f7f2fa;
+  --color-surface-container: #f1ecf4;
+  --color-surface-container-high: #ebe6ee;
+  --color-surface-container-highest: #e5e1e9;
+  --color-on-surface: #1c1b1f;
+  --color-on-surface-variant: #46464f;
+  --color-outline: #777680;
+  --color-outline-variant: #c7c5d0;
+  --color-inverse-surface: #313034;
+  --color-inverse-on-surface: #f4eff4;
+  --color-inverse-primary: #bfc2ff;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #e0e0ff;
+  --color-on-primary-container: #13144b;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #c5e7ff;
+  --color-on-secondary-container: #001e2d;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #410002;
+  --color-warning: #e68a00;
+  --color-on-warning: #ffffff;
+  --color-success: #2e7d32;
+  --color-on-success: #ffffff;
+  --color-shadow: rgba(0, 0, 0, 0.15);
+  --color-scrim: rgba(0, 0, 0, 0.25);
+}
+
+/* ─── Font Scale (user-adjustable via settings) ─── */
+:root {
+  --font-scale: 1;
+}
+
+/* ─── Base Styles ─── */
+body {
+  font-family: var(--font-body);
+  font-size: calc(14px * var(--font-scale));
+  line-height: 1.5;
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+#app {
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-outline-variant);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-outline);
+}
+
+/* ─── Selection ─── */
+::selection {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+/* ─── Focus Ring ─── */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
