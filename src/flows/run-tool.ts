@@ -4,7 +4,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { ToolDef, ToolResult } from "../tools/types.js";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { validateToolArgs } from "../tools/validation.js";
 import { checkDangerousCommand } from "../security/dangerous-commands.js";
 import { getEffectivePolicy, isInScheduledGrant, TOOL_SCOPE_MAP } from "../security/permission-scopes.js";
@@ -20,7 +20,7 @@ export type RunSubFlowFn = (
 ) => Promise<{ content: string; success: boolean }>;
 
 export type FlowRunToolContext = {
-  config: RzeclawConfig;
+  config: RezBotConfig;
   workspace: string;
   placeholderContext: PlaceholderContext;
   flowId: string;

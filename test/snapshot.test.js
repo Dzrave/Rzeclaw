@@ -12,7 +12,7 @@ describe("snapshot", () => {
   let dir;
 
   it("writeSnapshot and readSnapshot roundtrip", async () => {
-    dir = await mkdtemp(join(tmpdir(), "rzeclaw-snap-"));
+    dir = await mkdtemp(join(tmpdir(), "rezbot-snap-"));
     await writeSnapshot(dir, "sess-1", {
       messages: [
         { role: "user", content: "hi" },
@@ -29,7 +29,7 @@ describe("snapshot", () => {
   });
 
   it("listSnapshots returns empty for missing dir", async () => {
-    dir = await mkdtemp(join(tmpdir(), "rzeclaw-snap2-"));
+    dir = await mkdtemp(join(tmpdir(), "rezbot-snap2-"));
     const list = await listSnapshots(dir, 10);
     assert.strictEqual(list.length, 0);
     await rm(dir, { recursive: true, force: true });

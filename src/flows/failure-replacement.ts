@@ -2,7 +2,7 @@
  * Phase 13 WO-BT-018: 失败分支标记与替换。触发判定、失败摘要、runTopologyIteration 接入与审计。
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getFlowSuccessRates, getRecentOutcomes, getRecentFailureSummary } from "./outcomes.js";
 import { setFlowMetaFlaggedForReplacement } from "./meta.js";
 import { appendAudit, listFlows } from "./crud.js";
@@ -51,7 +51,7 @@ export async function shouldTriggerFailureReplacement(
   workspace: string,
   libraryPath: string,
   flowId: string,
-  config: RzeclawConfig
+  config: RezBotConfig
 ): Promise<ShouldTriggerResult> {
   const fr = config.flows?.failureReplacement;
   if (!fr?.enabled) return { trigger: false };
@@ -90,7 +90,7 @@ export async function performFailureReplacementAfterRun(
   workspace: string,
   libraryPath: string,
   flowId: string,
-  config: RzeclawConfig
+  config: RezBotConfig
 ): Promise<void> {
   const fr = config.flows?.failureReplacement;
   if (!fr?.enabled) return;
@@ -170,7 +170,7 @@ export type RunFailureReplacementScanResult = {
  * 可由定时任务或 Gateway 方法 flows.scanFailureReplacement 按需调用。
  */
 export async function runFailureReplacementScan(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspace: string,
   libraryPath: string
 ): Promise<RunFailureReplacementScanResult> {

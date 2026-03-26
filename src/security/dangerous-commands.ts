@@ -2,7 +2,7 @@
  * WO-SEC-001: 危险命令检测 — 内置规则与可配置 patterns，供 Bash 执行前调用。
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 
 /** 内置危险模式：匹配则视为危险命令（子串或正则） */
 const DEFAULT_PATTERNS: RegExp[] = [
@@ -21,7 +21,7 @@ const DEFAULT_PATTERNS: RegExp[] = [
   /\bdiskpart\b/i,
 ];
 
-function getPatterns(config: RzeclawConfig): RegExp[] {
+function getPatterns(config: RezBotConfig): RegExp[] {
   const list = [...DEFAULT_PATTERNS];
   const custom = config.security?.dangerousCommands?.patterns;
   if (Array.isArray(custom)) {
@@ -49,7 +49,7 @@ export type DangerousCheckResult = {
  */
 export function checkDangerousCommand(
   command: string,
-  config: RzeclawConfig
+  config: RezBotConfig
 ): DangerousCheckResult {
   const raw = typeof command === "string" ? command.trim() : "";
   if (!raw) {

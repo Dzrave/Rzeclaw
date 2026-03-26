@@ -2,7 +2,7 @@
  * RAG-1: 向量层统一入口。embed/search 抽象；内源 skills/flows 索引与检索。
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getEmbeddingProvider } from "./embed-client.js";
 import { searchVectors, writeVectors } from "./store.js";
 import type { SearchHit } from "./store.js";
@@ -10,13 +10,13 @@ import { listFlows } from "../flows/crud.js";
 import { loadSkillsFromDir } from "../skills/load.js";
 import { indexMotivation } from "./motivation.js";
 
-const DEFAULT_INDEX_PATH = ".rzeclaw/embeddings";
+const DEFAULT_INDEX_PATH = ".rezbot/embeddings";
 
-function getIndexStoragePath(config: RzeclawConfig): string {
+function getIndexStoragePath(config: RezBotConfig): string {
   return config.vectorEmbedding?.indexStoragePath ?? DEFAULT_INDEX_PATH;
 }
 
-function isCollectionEnabled(config: RzeclawConfig, collection: string): boolean {
+function isCollectionEnabled(config: RezBotConfig, collection: string): boolean {
   if (!config.vectorEmbedding?.enabled) return false;
   const coll = config.vectorEmbedding.collections?.[collection];
   return coll?.enabled === true;
@@ -25,7 +25,7 @@ function isCollectionEnabled(config: RzeclawConfig, collection: string): boolean
 /**
  * 对文本列表做向量嵌入；未配置或未启用时返回空数组。
  */
-export async function embed(config: RzeclawConfig, texts: string[]): Promise<number[][]> {
+export async function embed(config: RezBotConfig, texts: string[]): Promise<number[][]> {
   const provider = getEmbeddingProvider(config);
   if (!provider || texts.length === 0) return [];
   return provider.embed(texts);
@@ -35,7 +35,7 @@ export async function embed(config: RzeclawConfig, texts: string[]): Promise<num
  * 在指定集合内检索；未启用或无 provider 时返回 []。query 会先被 embed 再检索。
  */
 export async function search(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspace: string,
   collection: string,
   query: string,
@@ -54,7 +54,7 @@ export async function search(
  * RAG-1: 从流程库元数据生成 flows 集合索引（flowId + type 作为可检索文本）。
  */
 export async function indexFlows(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspace: string,
   libraryPath: string
 ): Promise<{ indexed: number; errors: string[] }> {
@@ -88,7 +88,7 @@ export async function indexFlows(
  * RAG-1: 从 Skill 目录生成 skills 集合索引（name + description）。
  */
 export async function indexSkills(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspace: string
 ): Promise<{ indexed: number; errors: string[] }> {
   if (!config.vectorEmbedding?.enabled || !isCollectionEnabled(config, "skills")) {
@@ -96,7 +96,7 @@ export async function indexSkills(
   }
   const provider = getEmbeddingProvider(config);
   if (!provider) return { indexed: 0, errors: ["vectorEmbedding provider not configured"] };
-  const skillsDir = config.skills?.dir ?? ".rzeclaw/skills";
+  const skillsDir = config.skills?.dir ?? ".rezbot/skills";
   const skills = await loadSkillsFromDir(workspace, skillsDir);
   const errors: string[] = [];
   if (skills.length === 0) return { indexed: 0, errors: [] };
@@ -132,7 +132,7 @@ export type { MotivationEntry, MotivationTranslated } from "./motivation.js";
 
 /** RAG-3: 外源灌入 — 将文档列表 embed 后写入指定集合 */
 export async function ingestToCollection(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspace: string,
   collection: string,
   documents: Array<{ id: string; text: string; metadata?: Record<string, unknown> }>
@@ -167,7 +167,7 @@ export async function ingestToCollection(
  * collection 为 "flows"|"skills"|"motivation" 时从可读源重建；其他集合仅支持外源灌入，需先 ingestToCollection。
  */
 export async function reindexCollection(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspace: string,
   collection: "flows" | "skills" | "motivation",
   libraryPath?: string
@@ -184,7 +184,7 @@ export async function reindexCollection(
 
 /** RAG-3: 为 flow 绑定的外源集合做检索，返回可拼入 LLM 上下文的文本 */
 export async function getRagContextForFlow(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspace: string,
   externalCollections: string[],
   query: string,

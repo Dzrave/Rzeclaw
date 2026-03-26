@@ -8,6 +8,8 @@ import { renderSidebar } from './sidebar.js';
 import { renderTopbar } from './topbar.js';
 import { renderStatusbar } from './statusbar.js';
 
+let localeUnsub: (() => void) | null = null;
+
 export function renderApp(): void {
   const app = document.getElementById('app');
   if (!app) return;
@@ -40,8 +42,9 @@ export function renderApp(): void {
   renderTopbar(document.getElementById('topbar')!);
   renderStatusbar(document.getElementById('statusbar')!);
 
-  // Re-render on locale change
-  onLocaleChange(() => {
+  // Re-render on locale change (unsub previous first)
+  if (localeUnsub) localeUnsub();
+  localeUnsub = onLocaleChange(() => {
     renderSidebar(document.getElementById('sidebar')!);
     renderTopbar(document.getElementById('topbar')!);
     renderStatusbar(document.getElementById('statusbar')!);

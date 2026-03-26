@@ -3,7 +3,7 @@
  * 设计依据: docs/EVENT_BUS_COLLABORATION_DESIGN.md §4
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { subscribe, publish } from "../event-bus/bus.js";
 import type { DelegateRequestEvent, DelegateResultEvent } from "../event-bus/collaboration-schema.js";
 import { TOPIC_DELEGATE_REQUEST, TOPIC_DELEGATE_RESULT } from "../event-bus/collaboration-schema.js";
@@ -44,7 +44,7 @@ export function createDelegateId(): string {
  * 主控发布 delegate.request 并等待 delegate.result（或超时）。
  */
 export function requestDelegation(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   params: {
     sourceAgentId: string;
     targetAgentId: string;
@@ -99,7 +99,7 @@ export function requestDelegation(
 /**
  * 订阅 delegate.request：当 targetAgentId 为本进程某 Agent 时执行任务并发布 delegate.result。
  */
-export function subscribeToDelegateRequest(config: RzeclawConfig): () => void {
+export function subscribeToDelegateRequest(config: RezBotConfig): () => void {
   if (!hasAgentsEnabled(config)) return () => {};
 
   return subscribe<DelegateRequestEvent>(TOPIC_DELEGATE_REQUEST, async (event) => {

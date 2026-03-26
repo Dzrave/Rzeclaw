@@ -3,7 +3,7 @@
  * 支持多级列表（保留缩进层级）、优先级标记 [高]/[中]/[低]；可选 WO-903 LLM 判断。
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getLLMClient } from "../llm/index.js";
 
 export type CheckResult = {
@@ -54,7 +54,7 @@ export function check(listContent: string): CheckResult {
  * WO-903: 使用 LLM 判断是否建议执行以及建议执行哪一条；无 API Key 时回退到 check()。
  */
 export async function checkWithLLM(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   _workspaceRoot: string,
   listContent: string
 ): Promise<CheckResult> {

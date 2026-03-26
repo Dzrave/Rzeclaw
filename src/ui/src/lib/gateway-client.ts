@@ -1,6 +1,6 @@
 /**
  * Gateway RPC Client — TypeScript WebSocket JSON-RPC 2.0 client
- * Connects to the Rzeclaw Gateway server for all backend communication.
+ * Connects to the RezBot Gateway server for all backend communication.
  */
 
 type RpcCallback = {
@@ -42,7 +42,7 @@ class _GatewayClient {
     const loc = window.location;
     const protocol = loc.protocol === 'https:' ? 'wss:' : 'ws:';
     // In dev mode (Vite proxy), connect to same host; in production, gateway serves the SPA
-    return `${protocol}//${loc.hostname}:${loc.port || '9999'}`;
+    return `${protocol}//${loc.hostname}:${loc.port || '18789'}`;
   }
 
   /** Establish WebSocket connection */

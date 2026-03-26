@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { select, confirm } from "@inquirer/prompts";
 import { loadConfig, getResolvedLlm } from "./config.js";
 
-const PROJECT_NAME = "rzeclaw";
+const PROJECT_NAME = "rezbot";
 const MIN_NODE_MAJOR = 18;
 
 function nodeVersionOk(): boolean {
@@ -21,7 +21,7 @@ type ModelChoice = "anthropic" | "deepseek" | "ollama" | "minimax" | "keep";
 export async function runSetupWizard(projectRoot: string): Promise<void> {
   const packagePath = join(projectRoot, "package.json");
   if (!existsSync(packagePath)) {
-    console.error("未在项目根目录：当前目录下没有 package.json。请在克隆后的 Rzeclaw 目录内执行。");
+    console.error("未在项目根目录：当前目录下没有 package.json。请在克隆后的 RezBot 目录内执行。");
     process.exit(2);
   }
   let pkg: { name?: string };
@@ -31,11 +31,11 @@ export async function runSetupWizard(projectRoot: string): Promise<void> {
     pkg = {};
   }
   if (pkg.name !== PROJECT_NAME) {
-    console.error("当前目录不是 Rzeclaw 项目（package.json 的 name 不是 rzeclaw）。请在项目根目录执行。");
+    console.error("当前目录不是 RezBot 项目（package.json 的 name 不是 rezbot）。请在项目根目录执行。");
     process.exit(2);
   }
 
-  console.log("\n========== Rzeclaw 配置向导 ==========\n");
+  console.log("\n========== RezBot 配置向导 ==========\n");
 
   // 1) 环境与依赖提示
   if (!nodeVersionOk()) {
@@ -58,7 +58,7 @@ export async function runSetupWizard(projectRoot: string): Promise<void> {
   }
   console.log("[构建] dist 已生成 ✓\n");
 
-  // 2) 确保 .env 与 rzeclaw.json 存在
+  // 2) 确保 .env 与 rezbot.json 存在
   const envPath = join(projectRoot, ".env");
   const envExamplePath = join(projectRoot, ".env.example");
   if (!existsSync(envPath) && existsSync(envExamplePath)) {
@@ -66,17 +66,17 @@ export async function runSetupWizard(projectRoot: string): Promise<void> {
     console.log("已从 .env.example 创建 .env，请稍后填写 API Key。");
   }
 
-  const configPath = join(projectRoot, "rzeclaw.json");
-  const configExamplePath = join(projectRoot, "rzeclaw.example.json");
+  const configPath = join(projectRoot, "rezbot.json");
+  const configExamplePath = join(projectRoot, "rezbot.example.json");
   if (!existsSync(configPath) && existsSync(configExamplePath)) {
     copyFileSync(configExamplePath, configPath);
-    console.log("已从 rzeclaw.example.json 创建 rzeclaw.json。");
+    console.log("已从 rezbot.example.json 创建 rezbot.json。");
   }
 
   // 3) 交互式配置确认（仅 TTY，使用上下键选择）
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    console.log("非交互终端，跳过配置确认。请手动编辑 .env 与 rzeclaw.json 后运行：");
-    console.log("  node rzeclaw.mjs gateway  或  node rzeclaw.mjs agent \"你的问题\"");
+    console.log("非交互终端，跳过配置确认。请手动编辑 .env 与 rezbot.json 后运行：");
+    console.log("  node rezbot.mjs gateway  或  node rezbot.mjs agent \"你的问题\"");
     return;
   }
 
@@ -89,11 +89,11 @@ export async function runSetupWizard(projectRoot: string): Promise<void> {
       console.log("【API Key】未检测到环境变量 " + apiKeyEnv + "。");
       console.log("  请编辑项目根目录下的 .env，设置对应 API Key（如 ANTHROPIC_API_KEY=sk-ant-...）。\n");
       const cont = await confirm({
-        message: "是否已设置并继续配置其他项？（选否则退出，设置后可重新运行 node rzeclaw.mjs setup）",
+        message: "是否已设置并继续配置其他项？（选否则退出，设置后可重新运行 node rezbot.mjs setup）",
         default: true,
       });
       if (!cont) {
-        console.log("请设置 .env 后重新执行：node rzeclaw.mjs setup");
+        console.log("请设置 .env 后重新执行：node rezbot.mjs setup");
         process.exit(0);
       }
     } else {
@@ -141,7 +141,7 @@ export async function runSetupWizard(projectRoot: string): Promise<void> {
       if (typeof configData.workspace !== "string") configData.workspace = "./workspace";
       if (typeof configData.port !== "number") configData.port = 18789;
       writeFileSync(configPath, JSON.stringify(configData, null, 2), "utf-8");
-      console.log("  已写入 rzeclaw.json。\n");
+      console.log("  已写入 rezbot.json。\n");
     }
     config = loadConfig(configPath);
     const resolved = getResolvedLlm(config);
@@ -181,12 +181,12 @@ export async function runSetupWizard(projectRoot: string): Promise<void> {
     if (startGateway === "now") {
       console.log("请在新开一个终端中执行：");
       console.log("  cd " + projectRoot);
-      console.log("  node rzeclaw.mjs gateway");
+      console.log("  node rezbot.mjs gateway");
       console.log("\n然后使用 WebSocket 客户端连接 ws://127.0.0.1:18789 进行对话。");
     } else {
       console.log("下一步可执行：");
-      console.log("  • 直接对话: node rzeclaw.mjs agent \"你的问题\"");
-      console.log("  • 启动 Gateway: node rzeclaw.mjs gateway");
+      console.log("  • 直接对话: node rezbot.mjs agent \"你的问题\"");
+      console.log("  • 启动 Gateway: node rezbot.mjs gateway");
     }
     console.log("");
   } catch (err) {

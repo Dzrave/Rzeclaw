@@ -12,7 +12,7 @@ export async function writeSessionSummaryFile(params: {
   summary: string;
   factCount: number;
 }): Promise<void> {
-  const dir = path.join(params.workspaceDir, ".rzeclaw", "session_summaries");
+  const dir = path.join(params.workspaceDir, ".rezbot", "session_summaries");
   await mkdir(dir, { recursive: true });
   const filePath = path.join(dir, `${params.sessionId}.md`);
   const content = `# Session ${params.sessionId}\n\n## Summary\n\n${params.summary || "(no summary)"}\n\n## Facts extracted\n\n${params.factCount} fact(s) written to memory.\n`;
@@ -32,7 +32,7 @@ function getYesterdayDate(): string {
  */
 export async function readYesterdaySummary(workspaceDir: string): Promise<{ date: string; memo: string }> {
   const date = getYesterdayDate();
-  const dir = path.join(workspaceDir, ".rzeclaw", "session_summaries");
+  const dir = path.join(workspaceDir, ".rezbot", "session_summaries");
   let entries: string[];
   try {
     entries = await readdir(dir);

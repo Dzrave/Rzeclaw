@@ -1,13 +1,13 @@
 /**
  * Phase 16 WO-1640/1641/1642/1643: 探索经验存储与复用
- * 可读存储：workspace/.rzeclaw/rag/endogenous/exploration_experience.jsonl
+ * 可读存储：workspace/.rezbot/rag/endogenous/exploration_experience.jsonl
  * 向量索引（可选）：config.vectorEmbedding.collections[experience.collection]（推荐 "exploration_experience"）
  */
 
 import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { ingestToCollection, search } from "../rag/index.js";
 import type { PlanVariant } from "./types.js";
 
@@ -28,7 +28,7 @@ export type ExplorationExperienceEntry = {
   payload?: Record<string, unknown>;
 };
 
-const SUBDIR = ".rzeclaw";
+const SUBDIR = ".rezbot";
 const RAG_DIR = "rag";
 const ENDOGENOUS_DIR = "endogenous";
 const FILENAME = "exploration_experience.jsonl";
@@ -105,7 +105,7 @@ export function findBestMatch(
 }
 
 /** 将 exploration.experience.collection 解析为集合名，默认 exploration_experience */
-function getExperienceCollection(config: RzeclawConfig): string | null {
+function getExperienceCollection(config: RezBotConfig): string | null {
   const exp = config.exploration?.experience;
   if (!exp?.enabled) return null;
   const coll = exp.collection && exp.collection.trim().length > 0 ? exp.collection.trim() : "exploration_experience";
@@ -136,7 +136,7 @@ export function writeEntry(
 
 /** 写入条目并（若已启用）更新向量索引；仅探索层内部使用 */
 export async function writeEntryWithVector(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspace: string,
   entry: Omit<ExplorationExperienceEntry, "id" | "created_at" | "reuse_count">
 ): Promise<ExplorationExperienceEntry> {
@@ -166,7 +166,7 @@ export async function writeEntryWithVector(
  * 要求：config.vectorEmbedding 启用且 exploration.experience.collection 已启用对应集合。
  */
 export async function findBestMatchVector(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspace: string,
   message: string,
   reuseThreshold: number,

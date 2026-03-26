@@ -5,7 +5,7 @@
 
 import type { AgentInstance, AgentInstanceState } from "./types.js";
 import { getAgentBlueprint } from "./blueprints.js";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 
 const instancesByBlueprint = new Map<string, AgentInstance[]>();
 const INSTANCE_IDLE_RECYCLE_MS = 30 * 60 * 1000; // 30 min
@@ -18,7 +18,7 @@ function generateInstanceId(blueprintId: string): string {
 /**
  * 根据蓝图创建新实例（state=idle，空黑板）。
  */
-export function createInstance(config: RzeclawConfig, blueprintId: string, sessionId?: string): AgentInstance | null {
+export function createInstance(config: RezBotConfig, blueprintId: string, sessionId?: string): AgentInstance | null {
   const blueprint = getAgentBlueprint(config, blueprintId);
   if (!blueprint) return null;
   const now = new Date().toISOString();
@@ -44,7 +44,7 @@ export function createInstance(config: RzeclawConfig, blueprintId: string, sessi
  * 获取或创建实例：若该 blueprint 下已有 idle/done 实例则复用（更新 lastActiveAt、sessionId），否则创建新实例。
  * 策略：同一 blueprint 可保留多个实例，取最近活动的 idle 或 done 复用。
  */
-export function getOrCreateInstance(config: RzeclawConfig, blueprintId: string, sessionId?: string): AgentInstance | null {
+export function getOrCreateInstance(config: RezBotConfig, blueprintId: string, sessionId?: string): AgentInstance | null {
   const list = instancesByBlueprint.get(blueprintId);
   const now = new Date().toISOString();
   if (list?.length) {
@@ -74,7 +74,7 @@ export function setInstanceState(instance: AgentInstance, state: AgentInstanceSt
 /**
  * Phase 15 WO-OF-001: 返回当前所有 Agent 实例的扁平列表（只读），供 Gateway agents.list 使用。
  */
-export function listAllInstances(_config: RzeclawConfig): AgentInstance[] {
+export function listAllInstances(_config: RezBotConfig): AgentInstance[] {
   const out: AgentInstance[] = [];
   for (const list of instancesByBlueprint.values()) {
     for (const instance of list) {
@@ -87,7 +87,7 @@ export function listAllInstances(_config: RzeclawConfig): AgentInstance[] {
 /**
  * 回收超时未活动的 idle/done 实例（从列表中移除，不删持久化）。
  */
-function recycleStaleInstances(config: RzeclawConfig): void {
+function recycleStaleInstances(config: RezBotConfig): void {
   const cutoff = Date.now() - INSTANCE_IDLE_RECYCLE_MS;
   for (const [blueprintId, list] of instancesByBlueprint) {
     const kept = list.filter((i) => {
@@ -103,7 +103,7 @@ function recycleStaleInstances(config: RzeclawConfig): void {
 /**
  * 启动后台定时回收（可选）；在 Gateway 或执行层初始化时调用一次即可。
  */
-export function startRecycleTimer(config: RzeclawConfig): void {
+export function startRecycleTimer(config: RezBotConfig): void {
   if (recycleTimer) return;
   const intervalMs = 5 * 60 * 1000;
   function run() {

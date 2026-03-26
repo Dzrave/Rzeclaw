@@ -5,7 +5,7 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getLLMClient } from "../llm/index.js";
 import { readLastNEntries } from "../observability/op-log.js";
 import type { OpLogEntry } from "../observability/op-log.js";
@@ -15,9 +15,9 @@ import type { BTNode } from "./types.js";
 
 const ACTOR = "evolution_insert_tree";
 const EVOLVED_PREFIX = "evolved_";
-const DEFAULT_EVOLVED_DIR = ".rzeclaw/evolved_skills";
+const DEFAULT_EVOLVED_DIR = ".rezbot/evolved_skills";
 const DEFAULT_SANDBOX_TIMEOUT_MS = 30_000;
-const SANDBOX_DIR = ".rzeclaw/evolution_sandbox";
+const SANDBOX_DIR = ".rezbot/evolution_sandbox";
 
 /** WO-BT-024 §五：输入上下文，由调用方组装或从 session/op-log/黑板聚合 */
 export type EvolutionContext = {
@@ -30,7 +30,7 @@ export type EvolutionContext = {
 };
 
 export type RunEvolutionInsertTreeParams = {
-  config: RzeclawConfig;
+  config: RezBotConfig;
   workspace: string;
   libraryPath: string;
   context: EvolutionContext;
@@ -61,16 +61,16 @@ export type EvolutionLLMOutput = {
   };
 };
 
-function getInsertTreeConfig(config: RzeclawConfig): InsertTreeConfig | undefined {
+function getInsertTreeConfig(config: RezBotConfig): InsertTreeConfig | undefined {
   return config.evolution?.insertTree;
 }
-type InsertTreeConfig = NonNullable<RzeclawConfig["evolution"]>["insertTree"];
+type InsertTreeConfig = NonNullable<RezBotConfig["evolution"]>["insertTree"];
 
-export function getEvolvedSkillsDir(config: RzeclawConfig): string {
+export function getEvolvedSkillsDir(config: RezBotConfig): string {
   return config.evolution?.insertTree?.evolvedSkillsDir ?? DEFAULT_EVOLVED_DIR;
 }
 
-export function getSandboxTimeoutMs(config: RzeclawConfig): number {
+export function getSandboxTimeoutMs(config: RezBotConfig): number {
   const ms = config.evolution?.insertTree?.sandboxTimeoutMs;
   return typeof ms === "number" && ms > 0 ? ms : DEFAULT_SANDBOX_TIMEOUT_MS;
 }
@@ -92,7 +92,7 @@ export type AssembleEvolutionContextOptions = {
   lastN?: number;
   targetFlowSlice?: string;
   /** 若同时传 config 与 libraryPath，且配置了 targetFlowId，则从流程库取目标 flow 的 root 作为 targetFlowSlice */
-  config?: RzeclawConfig;
+  config?: RezBotConfig;
   libraryPath?: string;
 };
 
@@ -125,7 +125,7 @@ export async function assembleEvolutionContextFromWorkspace(
 
 /** WO-BT-024 可选：是否满足「可进化建议」条件（配置开启、最近有工具调用、无高风险 op 若未允许） */
 export async function canSuggestEvolution(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspace: string
 ): Promise<boolean> {
   const cfg = getInsertTreeConfig(config);

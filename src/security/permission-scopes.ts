@@ -2,7 +2,7 @@
  * WO-SEC-009 / WO-SEC-011: 权限域与默认策略，工具与 scope 映射，与 confirmPolicy 兼容。
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import type { PermissionScopePolicy } from "../config.js";
 
 export const TOOL_SCOPE_MAP: Record<string, string> = {
@@ -35,7 +35,7 @@ const DEFAULT_SCOPES: Record<string, PermissionScopePolicy> = {
  */
 export function getEffectivePolicy(
   toolName: string,
-  config: RzeclawConfig
+  config: RezBotConfig
 ): PermissionScopePolicy {
   const scopes = config.security?.permissionScopes;
   const scope = TOOL_SCOPE_MAP[toolName] ?? toolName;
@@ -60,7 +60,7 @@ export function getEffectivePolicy(
  */
 export function isInScheduledGrant(
   scope: string,
-  config: RzeclawConfig
+  config: RezBotConfig
 ): boolean {
   const grants = config.security?.scheduledGrants;
   if (!Array.isArray(grants) || grants.length === 0) return false;

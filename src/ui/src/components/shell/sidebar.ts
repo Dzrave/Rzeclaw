@@ -80,6 +80,8 @@ function getIcon(name: string): string {
   return ICONS[name] ?? '';
 }
 
+let routeUnsub: (() => void) | null = null;
+
 export function renderSidebar(container: HTMLElement): void {
   const currentPath = getCurrentRoute()?.path ?? '/';
 
@@ -140,8 +142,9 @@ export function renderSidebar(container: HTMLElement): void {
 
   container.innerHTML = html;
 
-  // Subscribe to route changes to update active state
-  onRouteChange(() => {
+  // Subscribe to route changes to update active state (unsub previous first)
+  if (routeUnsub) routeUnsub();
+  routeUnsub = onRouteChange(() => {
     renderSidebar(container);
   });
 }

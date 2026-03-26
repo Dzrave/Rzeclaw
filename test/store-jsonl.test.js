@@ -14,7 +14,7 @@ describe("JsonlMemoryStore", () => {
 
   describe("append and query", () => {
     it("appends entry and query returns it", async () => {
-      dir = await mkdtemp(join(tmpdir(), "rzeclaw-test-"));
+      dir = await mkdtemp(join(tmpdir(), "rezbot-test-"));
       store = new JsonlMemoryStore(join(dir, "mem.jsonl"));
       const entry = {
         id: "id-1",
@@ -35,7 +35,7 @@ describe("JsonlMemoryStore", () => {
 
   describe("update_validity", () => {
     it("updates validity of existing entry", async () => {
-      dir = await mkdtemp(join(tmpdir(), "rzeclaw-test-"));
+      dir = await mkdtemp(join(tmpdir(), "rezbot-test-"));
       store = new JsonlMemoryStore(join(dir, "mem2.jsonl"));
       await store.append({
         id: "id-2",

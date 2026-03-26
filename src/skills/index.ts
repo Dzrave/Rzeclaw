@@ -9,7 +9,7 @@ export { skillsToToolDefs } from "./tools.js";
 
 import { loadSkillsFromDir } from "./load.js";
 import { skillsToToolDefs } from "./tools.js";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import type { ToolDef } from "../tools/types.js";
 
 /**
@@ -18,7 +18,7 @@ import type { ToolDef } from "../tools/types.js";
  */
 export async function getSkillTools(
   workspaceRoot: string,
-  config: RzeclawConfig
+  config: RezBotConfig
 ): Promise<ToolDef[]> {
   const skillsConfig = config.skills;
   if (skillsConfig?.enabled !== true) return [];

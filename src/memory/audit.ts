@@ -17,7 +17,7 @@ export async function writeAuditLog(
   workspaceDir: string,
   record: AuditRecord
 ): Promise<void> {
-  const dir = path.join(workspaceDir, ".rzeclaw");
+  const dir = path.join(workspaceDir, ".rezbot");
   await mkdir(dir, { recursive: true });
   const filePath = path.join(dir, "audit.jsonl");
   const line = JSON.stringify(record) + "\n";

@@ -5,7 +5,7 @@
 import { writeFile, readFile, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 
-const RETROSPECTIVE_DIR = ".rzeclaw/retrospective";
+const RETROSPECTIVE_DIR = ".rezbot/retrospective";
 const PENDING_DIR = "pending";
 
 export type PendingPatch = {

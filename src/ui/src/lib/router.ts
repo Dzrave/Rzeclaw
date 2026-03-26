@@ -1,5 +1,5 @@
 /**
- * Simple hash-based SPA router for Rzeclaw UI.
+ * Simple hash-based SPA router for RezBot UI.
  * Routes map to page components that render into the content area.
  */
 
@@ -104,6 +104,7 @@ const routes: Route[] = [
 // ── State ──
 let currentRoute: Route | null = null;
 let currentCleanup: (() => void) | undefined;
+let navigating = false;
 const routeListeners: Array<(route: Route) => void> = [];
 
 /** Get the current hash path */
@@ -127,31 +128,39 @@ export async function navigateTo(path: string): Promise<void> {
     return;
   }
 
-  // Cleanup previous page
-  if (currentCleanup) {
-    try { currentCleanup(); } catch { /* ignore */ }
-    currentCleanup = undefined;
-  }
-
-  currentRoute = route;
-
-  // Ensure i18n namespace is loaded
-  await ensureNamespace(route.namespace);
-
-  // Load and render page
-  const container = document.getElementById('page-content');
-  if (!container) return;
-
-  container.innerHTML = '<div class="flex items-center justify-center h-full text-on-surface-variant">Loading…</div>';
+  // Guard against re-entrant navigation
+  if (navigating) return;
+  navigating = true;
 
   try {
-    const mod = await route.loader();
-    container.innerHTML = '';
-    mod.render(container);
-    currentCleanup = mod.cleanup;
-  } catch (e) {
-    console.error(`[Router] Failed to load page: ${route.path}`, e);
-    container.innerHTML = `<div class="flex items-center justify-center h-full text-error">Failed to load page</div>`;
+    // Cleanup previous page
+    if (currentCleanup) {
+      try { currentCleanup(); } catch { /* ignore */ }
+      currentCleanup = undefined;
+    }
+
+    currentRoute = route;
+
+    // Ensure i18n namespace is loaded
+    await ensureNamespace(route.namespace);
+
+    // Load and render page
+    const container = document.getElementById('page-content');
+    if (!container) return;
+
+    container.innerHTML = '<div class="flex items-center justify-center h-full text-on-surface-variant">Loading…</div>';
+
+    try {
+      const mod = await route.loader();
+      container.innerHTML = '';
+      mod.render(container);
+      currentCleanup = mod.cleanup;
+    } catch (e) {
+      console.error(`[Router] Failed to load page: ${route.path}`, e);
+      container.innerHTML = `<div class="flex items-center justify-center h-full text-error">Failed to load page</div>`;
+    }
+  } finally {
+    navigating = false;
   }
 
   // Notify listeners

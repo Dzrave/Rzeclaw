@@ -22,7 +22,7 @@ export async function queryAuditLog(
   workspaceDir: string,
   options: AuditQueryOptions = {}
 ): Promise<AuditRecord[]> {
-  const filePath = path.join(workspaceDir, ".rzeclaw", AUDIT_FILENAME);
+  const filePath = path.join(workspaceDir, ".rezbot", AUDIT_FILENAME);
   let raw: string;
   try {
     raw = await readFile(filePath, "utf-8");

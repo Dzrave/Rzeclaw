@@ -23,7 +23,7 @@ import { runSetupWizard } from "./setup-wizard.js";
 const program = new Command();
 
 program
-  .name("rzeclaw")
+  .name("rezbot")
   .description("Minimal AI assistant with computer tools (bash, read, write, edit, process)")
   .version("0.1.0");
 
@@ -50,11 +50,11 @@ program
     const config = loadConfig();
     const message = opts.message ?? posMessage;
     if (!message || typeof message !== "string") {
-      console.error("Provide a message: rzeclaw agent \"your question\"");
+      console.error("Provide a message: rezbot agent \"your question\"");
       process.exit(2);
     }
     if (!isLlmReady(config)) {
-      console.error("LLM 未就绪：请为当前提供商设置对应 API Key（如 ANTHROPIC_API_KEY、DEEPSEEK_API_KEY、MINIMAX_API_KEY），或使用本地 Ollama（无需 Key）。可在 rzeclaw.json 中配置 llm.provider 与 llm.apiKeyEnv。");
+      console.error("LLM 未就绪：请为当前提供商设置对应 API Key（如 ANTHROPIC_API_KEY、DEEPSEEK_API_KEY、MINIMAX_API_KEY），或使用本地 Ollama（无需 Key）。可在 rezbot.json 中配置 llm.provider 与 llm.apiKeyEnv。");
       process.exit(1);
     }
     const workspace = path.resolve(config.workspace);
@@ -255,7 +255,7 @@ program
   .command("self-check")
   .description("自检运行环境、依赖、构建与配置；可配合 --repair 自动修复")
   .option("--repair", "发现问题时执行修复（npm install、npm run build）")
-  .option("--reset-config", "修复时从 rzeclaw.example.json 恢复 rzeclaw.json（与 --repair 同用）")
+  .option("--reset-config", "修复时从 rezbot.example.json 恢复 rezbot.json（与 --repair 同用）")
   .option("--reset-env", "修复时从 .env.example 恢复 .env（与 --repair 同用）")
   .option("-j, --json", "输出 JSON 结果")
   .action(async (opts) => {
@@ -269,7 +269,7 @@ program
         console.log(`  [${item.ok ? "OK" : "FAIL"}] ${item.id}: ${item.message}`);
         if (!item.ok && item.repair) console.log(`      修复建议: ${item.repair}`);
       }
-      console.log(result.ok ? "\n全部通过。" : "\n存在异常，可运行 rzeclaw repair 或 rzeclaw self-check --repair 尝试修复。");
+      console.log(result.ok ? "\n全部通过。" : "\n存在异常，可运行 rezbot repair 或 rezbot self-check --repair 尝试修复。");
     }
     if (opts.repair && !result.ok) {
       const steps = getRepairSteps({
@@ -288,7 +288,7 @@ program
           process.exit(1);
         }
       }
-      console.log("修复完成。可再次运行 rzeclaw self-check 验证。");
+      console.log("修复完成。可再次运行 rezbot self-check 验证。");
     }
     process.exit(result.ok ? 0 : 1);
   });
@@ -296,7 +296,7 @@ program
 program
   .command("repair")
   .description("执行修复：npm install、npm run build，可选恢复示例配置")
-  .option("--reset-config", "从 rzeclaw.example.json 覆盖恢复 rzeclaw.json")
+  .option("--reset-config", "从 rezbot.example.json 覆盖恢复 rezbot.json")
   .option("--reset-env", "从 .env.example 覆盖恢复 .env")
   .option("--no-install", "跳过 npm install")
   .option("--no-build", "跳过 npm run build")
@@ -323,10 +323,10 @@ program
 program
   .command("uninstall")
   .description("卸载：移除 node_modules 与 dist；可选移除配置与本地数据（默认均保留）。--all 为全部卸载。")
-  .option("--all", "全部卸载：移除软件及全部本地数据与配置（含 .env、rzeclaw.json、工作区及 .rzeclaw 数据）")
-  .option("--remove-config", "同时移除 rzeclaw.json / .rzeclaw.json")
+  .option("--all", "全部卸载：移除软件及全部本地数据与配置（含 .env、rezbot.json、工作区及 .rezbot 数据）")
+  .option("--remove-config", "同时移除 rezbot.json / .rezbot.json")
   .option("--remove-env", "同时移除 .env")
-  .option("--remove-rzeclaw-data", "同时移除工作区内的 .rzeclaw 目录（记忆、快照等）")
+  .option("--remove-rezbot-data", "同时移除工作区内的 .rezbot 目录（记忆、快照等）")
   .option("--remove-workspace", "同时移除整个工作区目录（慎用）")
   .option("-y, --yes", "不提示，直接执行")
   .option("-j, --json", "仅输出将执行的操作（不实际删除）")
@@ -337,7 +337,7 @@ program
       removeWorkspace: full || opts.removeWorkspace === true,
       removeConfig: full || opts.removeConfig === true,
       removeEnv: full || opts.removeEnv === true,
-      removeRzeclawData: full || opts.removeRzeclawData === true,
+      removeRezbotData: full || opts.removeRezbotData === true,
       yes: opts.yes === true,
     };
     const result = runUninstall(projectRoot, options);
@@ -347,8 +347,8 @@ program
           {
             willRemove: ["node_modules", "dist"].concat(
               options.removeEnv ? [".env"] : [],
-              options.removeConfig ? ["rzeclaw.json", ".rzeclaw.json"] : [],
-              options.removeRzeclawData ? ["workspace/.rzeclaw"] : [],
+              options.removeConfig ? ["rezbot.json", ".rezbot.json"] : [],
+              options.removeRezbotData ? ["workspace/.rezbot"] : [],
               options.removeWorkspace ? ["workspace"] : []
             ),
             kept: result.kept,

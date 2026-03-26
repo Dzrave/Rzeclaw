@@ -1,4 +1,4 @@
-# Rzeclaw setup (Windows PowerShell)
+# RezBot setup (Windows PowerShell)
 # Run from project root: .\scripts\setup.ps1
 # Flow: env check -> npm install -> build -> create config -> setup wizard
 
@@ -36,20 +36,20 @@ if (-not (Test-Path $envPath) -and (Test-Path $envExample)) {
     Write-Host "[3/5] .env exists or no example, skip" -ForegroundColor Gray
 }
 
-$configPath = Join-Path $root "rzeclaw.json"
-$configExample = Join-Path $root "rzeclaw.example.json"
+$configPath = Join-Path $root "rezbot.json"
+$configExample = Join-Path $root "rezbot.example.json"
 if (-not (Test-Path $configPath) -and (Test-Path $configExample)) {
     Copy-Item $configExample $configPath
-    Write-Host "[4/5] Created rzeclaw.json" -ForegroundColor Yellow
+    Write-Host "[4/5] Created rezbot.json" -ForegroundColor Yellow
 } else {
-    Write-Host "[4/5] rzeclaw.json exists or no example, skip" -ForegroundColor Gray
+    Write-Host "[4/5] rezbot.json exists or no example, skip" -ForegroundColor Gray
 }
 
 Write-Host "[5/5] Starting config wizard..." -ForegroundColor Cyan
 Write-Host ""
-node rzeclaw.mjs setup
+node rezbot.mjs setup
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
-    Write-Host "Run later: node rzeclaw.mjs setup" -ForegroundColor Yellow
-    Write-Host "Start: node rzeclaw.mjs agent ""your message""  or  node rzeclaw.mjs gateway" -ForegroundColor White
+    Write-Host "Run later: node rezbot.mjs setup" -ForegroundColor Yellow
+    Write-Host "Start: node rezbot.mjs agent ""your message""  or  node rezbot.mjs gateway" -ForegroundColor White
 }

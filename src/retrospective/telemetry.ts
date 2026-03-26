@@ -5,7 +5,7 @@
 import { writeFile, readFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-const TELEMETRY_DIR = ".rzeclaw/telemetry";
+const TELEMETRY_DIR = ".rezbot/telemetry";
 const EVENTS_FILE = "events.jsonl";
 
 export type TelemetryEvent = {

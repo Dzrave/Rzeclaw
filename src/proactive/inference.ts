@@ -3,7 +3,7 @@
  * 统一入口：任务+画布+近期记忆，输出 proposals/suggestions。
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { readTasks } from "./tasks.js";
 import { readCanvas } from "../canvas/index.js";
 import { createStore } from "../memory/store-jsonl.js";
@@ -25,7 +25,7 @@ const RECENT_MEMORY_LIMIT = 3;
  * 基于任务列表、Canvas 与近期记忆（WO-906）生成提议。
  */
 export async function runProactiveInference(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   options: { trigger: ProactiveTrigger; workspaceRoot: string }
 ): Promise<ProactiveResult> {
   await syncCanvasToTasks(options.workspaceRoot);

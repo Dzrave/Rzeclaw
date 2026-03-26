@@ -4,7 +4,7 @@
  */
 
 import path from "node:path";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import type { ChatRequestEvent, ChatResponseEvent } from "../event-bus/schema.js";
 import { publish, TOPIC_SKILL_REQUEST } from "../event-bus/index.js";
 import { createStore, createPrivacyIsolatedStore } from "../memory/store-jsonl.js";
@@ -72,7 +72,7 @@ function buildSessionFromEvent(event: ChatRequestEvent, workspace: string): Prom
  * 处理一条 chat 请求：路由 → executeFlow 或 runAgentLoop，写 memory（不写快照），返回 ChatResponseEvent。
  */
 export async function handleChatRequest(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   event: ChatRequestEvent,
   onStream?: (chunk: string) => void
 ): Promise<ChatResponseEvent> {
@@ -928,7 +928,7 @@ export async function handleChatRequest(
  * Phase 14C WO-1463: 流水线续跑 — 用指定 Agent 处理 stage 的 output，返回 response（供协作 runner 发布 stage_done 或 chat.response）。
  */
 export async function runAgentWithInput(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   params: {
     agentId: string;
     message: string;
@@ -1053,7 +1053,7 @@ export async function runAgentWithInput(
  * 执行 Gatekeeper + tryExploration，返回应发布的 chat.response（fallback）或 task.plan_ready（透传/编译）。
  */
 export async function runExplorationLayerForEventBus(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   event: ChatRequestEvent
 ): Promise<
   | { action: "response"; response: ChatResponseEvent }

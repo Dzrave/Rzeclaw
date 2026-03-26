@@ -1,10 +1,10 @@
 /**
- * WO-405: 会话结束或定期，让模型输出「若改进 system/工具描述，建议…」的文本，追加到 workspace/.rzeclaw/prompt_suggestions.md，不自动应用。
+ * WO-405: 会话结束或定期，让模型输出「若改进 system/工具描述，建议…」的文本，追加到 workspace/.rezbot/prompt_suggestions.md，不自动应用。
  */
 
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getLLMClient } from "../llm/index.js";
 
 const PROMPT = `Based on the following session summary, suggest 1–3 concrete improvements to the assistant's system prompt or tool descriptions (e.g. clearer intent→tool mapping, better error hints). Output only the suggestions, one per line, each line starting with "- ". If you have no suggestion, output exactly: "- (none)"`;
@@ -12,11 +12,11 @@ const PROMPT = `Based on the following session summary, suggest 1–3 concrete i
 const FILENAME = "prompt_suggestions.md";
 
 /**
- * 根据会话摘要让模型生成改进建议并追加到 workspace/.rzeclaw/prompt_suggestions.md。
+ * 根据会话摘要让模型生成改进建议并追加到 workspace/.rezbot/prompt_suggestions.md。
  * 不修改实际 prompt；仅写入建议供人工采纳。
  */
 export async function writePromptSuggestions(params: {
-  config: RzeclawConfig;
+  config: RezBotConfig;
   workspaceDir: string;
   sessionId: string;
   summary: string;
@@ -40,7 +40,7 @@ export async function writePromptSuggestions(params: {
     const lines = text.split("\n").map((l) => l.replace(/^\s*-\s*/, "").trim()).filter(Boolean);
     const suggestion = lines.length ? lines.join("\n") : "(no suggestions)";
 
-    const dir = path.join(params.workspaceDir, ".rzeclaw");
+    const dir = path.join(params.workspaceDir, ".rezbot");
     await mkdir(dir, { recursive: true });
     const filePath = path.join(dir, FILENAME);
     const header = `\n## ${new Date().toISOString()} (session ${params.sessionId})\n\n${suggestion}\n`;

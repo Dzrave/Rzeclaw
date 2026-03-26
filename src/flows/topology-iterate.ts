@@ -2,7 +2,7 @@
  * Phase 13 WO-BT-026: 拓扑自我迭代。触发后组装上下文 → LLM 输出 EditOp[] → applyEditOps 执行并落盘。
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getLLMClient } from "../llm/index.js";
 import { getFlow, applyEditOps } from "./crud.js";
 import type { EditOp } from "./crud.js";
@@ -20,7 +20,7 @@ Each operation must be one of:
 Use "root" for the root node id. Output only the JSON array.`;
 
 export type RunTopologyIterationParams = {
-  config: RzeclawConfig;
+  config: RezBotConfig;
   workspace: string;
   libraryPath: string;
   flowId: string;

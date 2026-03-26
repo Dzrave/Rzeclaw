@@ -5,6 +5,8 @@
 import { t } from '../../i18n/index.js';
 import { GatewayClient } from '../../lib/gateway-client.js';
 
+let latencyUnsub: (() => void) | null = null;
+
 export function renderStatusbar(container: HTMLElement): void {
   const state = GatewayClient.getState();
   const latency = GatewayClient.getLatency();
@@ -36,13 +38,14 @@ export function renderStatusbar(container: HTMLElement): void {
 
       <!-- App info -->
       <div class="text-on-surface-variant/40">
-        Rzeclaw UI v0.1.0
+        RezBot UI v0.1.0
       </div>
     </div>
   `;
 
-  // Update latency display
-  GatewayClient.onLatencyChange((ms) => {
+  // Update latency display (unsub previous first)
+  if (latencyUnsub) latencyUnsub();
+  latencyUnsub = GatewayClient.onLatencyChange((ms) => {
     const latencyEl = container.querySelector('[data-latency]') as HTMLElement;
     if (latencyEl) latencyEl.textContent = `${ms}ms`;
   });

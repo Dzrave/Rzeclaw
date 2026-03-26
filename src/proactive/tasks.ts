@@ -16,7 +16,7 @@ export type Task = {
   updatedAt?: string;
 };
 
-const DIR = ".rzeclaw";
+const DIR = ".rezbot";
 const FILE = "tasks.json";
 
 function tasksPath(workspaceRoot: string): string {

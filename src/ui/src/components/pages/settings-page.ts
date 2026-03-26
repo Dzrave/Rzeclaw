@@ -9,7 +9,7 @@ import { GatewayClient } from '../../lib/gateway-client.js';
 let container: HTMLElement | null = null;
 let activeSection = 'general';
 let configData: Record<string, unknown> = {};
-let fontScale = parseFloat(localStorage.getItem('rzeclaw-font-scale') || '1');
+let fontScale = parseFloat(localStorage.getItem('rezbot-font-scale') || '1');
 let reloadInProgress = false;
 
 /* ─── Theme Engine (P2-17) ─── */
@@ -22,14 +22,14 @@ const DEFAULT_ACCENT = '#a3a6ff';
 
 function loadThemePrefs(): ThemePrefs {
   try {
-    const raw = localStorage.getItem('rzeclaw-theme');
+    const raw = localStorage.getItem('rezbot-theme');
     if (raw) return JSON.parse(raw);
   } catch { /* ignore */ }
   return { mode: 'dark', accentColor: DEFAULT_ACCENT };
 }
 
 function saveThemePrefs(prefs: ThemePrefs): void {
-  localStorage.setItem('rzeclaw-theme', JSON.stringify(prefs));
+  localStorage.setItem('rezbot-theme', JSON.stringify(prefs));
 }
 
 let themePrefs = loadThemePrefs();
@@ -170,7 +170,7 @@ function renderGeneralSection(): string {
       `)}
       ${settingsField(t('settings.port') || '端口', `
         <div class="text-sm text-on-surface font-mono bg-surface-container-high px-3 py-2 rounded-lg border border-outline-variant/20">
-          ${configData.port ?? 9999}
+          ${configData.port ?? 18789}
         </div>
         <p class="text-xs text-on-surface-variant/50 mt-1">${t('settings.notReloadable') || '不可运行时修改'}</p>
       `)}
@@ -424,7 +424,7 @@ function bindEvents(): void {
     const val = parseFloat(slider.value);
     fontScale = val;
     document.documentElement.style.setProperty('--font-scale', String(val));
-    localStorage.setItem('rzeclaw-font-scale', String(val));
+    localStorage.setItem('rezbot-font-scale', String(val));
     const display = container?.querySelector('#font-scale-value');
     if (display) display.textContent = `${Math.round(val * 100)}%`;
   });
@@ -434,7 +434,7 @@ function bindEvents(): void {
       const scale = parseFloat((el as HTMLElement).dataset.scale ?? '1');
       fontScale = scale;
       document.documentElement.style.setProperty('--font-scale', String(scale));
-      localStorage.setItem('rzeclaw-font-scale', String(scale));
+      localStorage.setItem('rezbot-font-scale', String(scale));
       renderFull();
     });
   });

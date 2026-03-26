@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getLLMClient } from "../llm/index.js";
 import { readTodayBuffer } from "./today-buffer.js";
 import {
@@ -57,7 +57,7 @@ export type FoldResult = {
 export async function runFoldForDate(
   workspaceDir: string,
   date: string,
-  config: RzeclawConfig
+  config: RezBotConfig
 ): Promise<FoldResult> {
   const windowDays = config.memory?.rollingLedger?.windowDays ?? 5;
   const { text } = await readTodayBuffer(workspaceDir, date);
@@ -128,7 +128,7 @@ function shouldPromoteEvictedToRag(entry: DayEntry): boolean {
 async function promoteEvictedDayToL1(
   workspaceDir: string,
   entry: DayEntry,
-  config: RzeclawConfig
+  config: RezBotConfig
 ): Promise<void> {
   if (!config.memory?.enabled) return;
   const store = createStore(workspaceDir, config.memory.workspaceId);

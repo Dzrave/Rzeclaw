@@ -48,11 +48,11 @@ ipcMain.handle("discovery:scan", () => {
     const list = [];
     try {
       const bonjour = require("bonjour")();
-      bonjour.find({ type: "rzeclaw" }, (service) => {
+      bonjour.find({ type: "rezbot" }, (service) => {
         const host = service.host || service.referer?.address || "localhost";
         const port = service.port || 18789;
         list.push({
-          name: service.name || "Rzeclaw",
+          name: service.name || "RezBot",
           host,
           port,
           url: `ws://${host}:${port}`,

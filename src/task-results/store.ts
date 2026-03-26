@@ -71,7 +71,7 @@ export function setTaskCompleted(
   t.expiresAt = expiresAtFromNow(retention);
 
   if (options?.workspace) {
-    const dir = join(options.workspace, ".rzeclaw", "task_results");
+    const dir = join(options.workspace, ".rezbot", "task_results");
     mkdir(dir, { recursive: true })
       .then(() =>
         writeFile(
@@ -111,7 +111,7 @@ export function setTaskFailed(
   t.expiresAt = expiresAtFromNow(retention);
 
   if (options?.workspace) {
-    const dir = join(options.workspace, ".rzeclaw", "task_results");
+    const dir = join(options.workspace, ".rezbot", "task_results");
     mkdir(dir, { recursive: true })
       .then(() =>
         writeFile(
@@ -137,7 +137,7 @@ export async function getResult(
     return t;
   }
   if (options?.workspace) {
-    const file = join(options.workspace, ".rzeclaw", "task_results", `${correlationId.replace(/[/\\]/g, "_")}.json`);
+    const file = join(options.workspace, ".rezbot", "task_results", `${correlationId.replace(/[/\\]/g, "_")}.json`);
     if (existsSync(file)) {
       try {
         const raw = await readFile(file, "utf-8");
@@ -190,7 +190,7 @@ export async function cleanupExpired(workspace?: string): Promise<{ deleted: num
       memory.delete(id);
       deleted++;
       if (workspace) {
-        const file = join(workspace, ".rzeclaw", "task_results", `${id.replace(/[/\\]/g, "_")}.json`);
+        const file = join(workspace, ".rezbot", "task_results", `${id.replace(/[/\\]/g, "_")}.json`);
         try {
           await unlink(file);
         } catch (_) {}
@@ -198,7 +198,7 @@ export async function cleanupExpired(workspace?: string): Promise<{ deleted: num
     }
   }
   if (workspace) {
-    const dir = join(workspace, ".rzeclaw", "task_results");
+    const dir = join(workspace, ".rezbot", "task_results");
     if (existsSync(dir)) {
       const files = await readdir(dir).catch(() => []);
       for (const f of files) {

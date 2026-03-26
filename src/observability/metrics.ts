@@ -42,7 +42,7 @@ export async function readSessionMetricsFromDir(
   workspaceOrMetricsDir: string,
   limit: number = 100
 ): Promise<SessionMetrics[]> {
-  const dir = path.join(workspaceOrMetricsDir, ".rzeclaw");
+  const dir = path.join(workspaceOrMetricsDir, ".rezbot");
   const file = path.join(dir, "sessions.jsonl");
   try {
     const raw = await readFile(file, "utf-8");

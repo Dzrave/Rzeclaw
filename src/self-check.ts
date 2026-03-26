@@ -54,7 +54,7 @@ export async function runSelfCheck(projectRoot: string): Promise<SelfCheckResult
     id: "deps",
     ok: hasKeyDep,
     message: hasKeyDep ? "依赖已安装" : hasNodeModules ? "依赖不完整" : "node_modules 缺失",
-    repair: "执行 npm install 或运行 rzeclaw repair",
+    repair: "执行 npm install 或运行 rezbot repair",
   });
 
   const distPath = join(projectRoot, "dist");
@@ -64,7 +64,7 @@ export async function runSelfCheck(projectRoot: string): Promise<SelfCheckResult
     id: "build",
     ok: hasDist,
     message: hasDist ? "已构建 (dist/index.js)" : "未构建或构建不完整",
-    repair: "执行 npm run build 或运行 rzeclaw repair",
+    repair: "执行 npm run build 或运行 rezbot repair",
   });
 
   let configLoaded = false;
@@ -94,7 +94,7 @@ export async function runSelfCheck(projectRoot: string): Promise<SelfCheckResult
       id: "config",
       ok: false,
       message: `配置加载失败: ${configError}`,
-      repair: "检查 rzeclaw.json 或 ~/.rzeclaw/config.json 格式，或运行 rzeclaw repair --reset-config 从示例恢复",
+      repair: "检查 rezbot.json 或 ~/.rezbot/config.json 格式，或运行 rezbot repair --reset-config 从示例恢复",
     });
   }
 
@@ -137,7 +137,7 @@ export async function runSelfCheck(projectRoot: string): Promise<SelfCheckResult
         message: hasHighRisk
           ? "最近 30 条操作中存在高风险记录，建议检查工作区或执行纠正"
           : "最近操作无高风险记录",
-        repair: "可运行 rzeclaw agent 使用 undo_last 撤销最近可撤销操作，或查看 docs/SELF_CHECK_AND_UNINSTALL.md 的纠正说明",
+        repair: "可运行 rezbot agent 使用 undo_last 撤销最近可撤销操作，或查看 docs/SELF_CHECK_AND_UNINSTALL.md 的纠正说明",
       });
     } catch {
       // skip if config/workspace unavailable
@@ -179,14 +179,14 @@ export function getRepairSteps(options: RepairOptions): Array<{ id: string; desc
   if (options.resetConfig) {
     steps.push({
       id: "reset-config",
-      description: "从 rzeclaw.example.json 恢复 rzeclaw.json",
+      description: "从 rezbot.example.json 恢复 rezbot.json",
       run: async () => {
-        const src = join(projectRoot, "rzeclaw.example.json");
-        const dest = join(projectRoot, "rzeclaw.json");
+        const src = join(projectRoot, "rezbot.example.json");
+        const dest = join(projectRoot, "rezbot.json");
         if (existsSync(src)) {
           copyFileSync(src, dest);
         } else {
-          throw new Error("未找到 rzeclaw.example.json");
+          throw new Error("未找到 rezbot.example.json");
         }
       },
     });

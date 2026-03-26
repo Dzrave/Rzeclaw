@@ -1,6 +1,6 @@
 /**
  * WO-606: 本地 Skill 目录加载。
- * 从 workspace/.rzeclaw/skills/ 或配置路径加载 *.json，白名单仅此目录。
+ * 从 workspace/.rezbot/skills/ 或配置路径加载 *.json，白名单仅此目录。
  */
 
 import { readdir, readFile } from "node:fs/promises";
@@ -8,7 +8,7 @@ import { join, resolve } from "node:path";
 import type { Skill } from "./types.js";
 import { isSkillLike } from "./types.js";
 
-const DEFAULT_SKILLS_DIR = ".rzeclaw/skills";
+const DEFAULT_SKILLS_DIR = ".rezbot/skills";
 
 /**
  * 从目录加载所有 .json 技能定义；非 JSON 或格式错误则跳过该文件。

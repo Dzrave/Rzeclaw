@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rzeclaw 一条龙安装与配置（macOS / Linux）
+# RezBot 一条龙安装与配置（macOS / Linux）
 # 用法：在项目根目录执行 ./scripts/setup.sh 或 bash scripts/setup.sh
 # 流程：环境检查 → 安装依赖 → 构建 → 创建示例配置 → 配置向导（模型/终端/Gateway）
 
@@ -33,18 +33,18 @@ else
   echo "[3/5] .env 已存在或无示例，跳过"
 fi
 
-if [ ! -f rzeclaw.json ] && [ -f rzeclaw.example.json ]; then
-  cp rzeclaw.example.json rzeclaw.json
-  echo "[4/5] 已创建 rzeclaw.json，向导中将确认模型与工作区等"
+if [ ! -f rezbot.json ] && [ -f rezbot.example.json ]; then
+  cp rezbot.example.json rezbot.json
+  echo "[4/5] 已创建 rezbot.json，向导中将确认模型与工作区等"
 else
-  echo "[4/5] rzeclaw.json 已存在或无示例，跳过"
+  echo "[4/5] rezbot.json 已存在或无示例，跳过"
 fi
 
 echo "[5/5] 启动配置向导（模型选择、命令终端策略、是否启动 Gateway）..."
 echo ""
-node rzeclaw.mjs setup
+node rezbot.mjs setup
 if [ $? -ne 0 ]; then
   echo ""
-  echo "配置向导未完成时，可稍后手动执行: node rzeclaw.mjs setup"
-  echo "启动方式: node rzeclaw.mjs agent \"你的问题\"  或  node rzeclaw.mjs gateway"
+  echo "配置向导未完成时，可稍后手动执行: node rezbot.mjs setup"
+  echo "启动方式: node rezbot.mjs agent \"你的问题\"  或  node rezbot.mjs gateway"
 fi

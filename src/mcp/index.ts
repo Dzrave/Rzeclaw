@@ -7,7 +7,7 @@ export type { McpTool } from "./client.js";
 export { mcpToolName, parseMcpToolName, mcpToolsToToolDefs } from "./tools.js";
 
 import type { ToolDef } from "../tools/types.js";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { connectAndListTools } from "./client.js";
 import { mcpToolsToToolDefs } from "./tools.js";
 
@@ -15,7 +15,7 @@ import { mcpToolsToToolDefs } from "./tools.js";
  * 获取所有已配置 MCP Server 的工具（合并为 ToolDef 列表，名称带 mcp_ 前缀）。
  */
 export async function getMcpTools(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspaceRoot: string
 ): Promise<ToolDef[]> {
   const mcp = config.mcp;

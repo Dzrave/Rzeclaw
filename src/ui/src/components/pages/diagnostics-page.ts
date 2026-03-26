@@ -355,7 +355,7 @@ function renderFull(): void {
             ${selfCheckResults.length === 0 ? `
               <p class="text-on-surface-variant/40">$ awaiting self-check...</p>
             ` : `
-              <p class="text-on-surface-variant/50 mb-2">$ rzeclaw self-check --all</p>
+              <p class="text-on-surface-variant/50 mb-2">$ rezbot self-check --all</p>
               ${selfCheckResults.map(renderSelfCheckLine).join('')}
               <p class="text-on-surface-variant/50 mt-2">$ ${t('diagnostics.selfCheck.complete') || 'Self-check complete'}</p>
             `}
@@ -501,7 +501,7 @@ function bindEvents(): void {
     try {
       const result = await GatewayClient.call<{ data: string; filename: string }>('diagnostic.export', {});
       if (result?.data) {
-        downloadFile(result.data, result.filename || 'rzeclaw-logs.jsonl', 'application/x-ndjson');
+        downloadFile(result.data, result.filename || 'rezbot-logs.jsonl', 'application/x-ndjson');
       }
     } catch (e) {
       console.error('Export logs failed:', e);
@@ -523,7 +523,7 @@ function bindEvents(): void {
         taskQueue: taskQueue.map(t => ({ ...t })),
       };
       const json = JSON.stringify(metricsData, null, 2);
-      downloadFile(json, `rzeclaw-metrics-${Date.now()}.json`, 'application/json');
+      downloadFile(json, `rezbot-metrics-${Date.now()}.json`, 'application/json');
     } catch (e) {
       console.error('Export metrics failed:', e);
     }

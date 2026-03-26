@@ -2,7 +2,7 @@
  * 多模型统一入口：根据配置返回 LLM 客户端，支持云端/本地切换与 Ollama 不可用时的回退。
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getResolvedLlm } from "../config.js";
 import type { ILLMClient, CreateMessageParams, LLMResponse } from "./types.js";
 import { createAnthropicClient } from "./anthropic.js";
@@ -10,7 +10,7 @@ import { createDeepSeekClient } from "./deepseek.js";
 import { createMiniMaxClient } from "./minimax.js";
 import { createOllamaClient } from "./ollama.js";
 
-function getApiKeyForProvider(config: RzeclawConfig, provider: "anthropic" | "deepseek" | "minimax"): string | undefined {
+function getApiKeyForProvider(config: RezBotConfig, provider: "anthropic" | "deepseek" | "minimax"): string | undefined {
   const resolved = getResolvedLlm(config);
   const envName =
     provider === "anthropic"
@@ -54,7 +54,7 @@ function createWithFallback(
  * - anthropic / deepseek / minimax：需对应 API Key 环境变量。
  * - ollama：无需 Key；可配置 baseURL、fallbackProvider 在本地不可用时回退到云端。
  */
-export function getLLMClient(config: RzeclawConfig): ILLMClient {
+export function getLLMClient(config: RezBotConfig): ILLMClient {
   const resolved = getResolvedLlm(config);
   const { provider, model, baseURL, fallbackProvider } = resolved;
 
@@ -133,7 +133,7 @@ export type { ILLMClient, CreateMessageParams, LLMResponse, LLMMessage, LLMTool,
  * WO-BT-021: 单轮 LLM 调用（无工具），用于 BT 内 LLM 兜底节点。返回助手回复文本。
  */
 export async function singleTurnLLM(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   userMessage: string,
   systemPrompt?: string
 ): Promise<string> {

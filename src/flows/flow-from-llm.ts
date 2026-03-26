@@ -3,7 +3,7 @@
  * 与 BEHAVIOR_TREE_AND_STATE_MACHINE_DESIGN.md §7.3、§十 一致。
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getLLMClient } from "../llm/index.js";
 import type { BTFlowDef, BTNode } from "./types.js";
 import { createFlow, appendAudit, listFlows } from "./crud.js";
@@ -103,7 +103,7 @@ const SYSTEM_PROMPT = `你是一个流程生成助手。用户会描述想要完
 - 若用户描述含糊，steps 可先写概括性步骤，后续可再编辑流程。`;
 
 export type RunLLMGenerateFlowParams = {
-  config: RzeclawConfig;
+  config: RezBotConfig;
   workspace: string;
   libraryPath: string;
   userMessage: string;
@@ -170,7 +170,7 @@ export async function runLLMGenerateFlow(
  * 判断当前是否应尝试「用 LLM 生成 flow」：无匹配且配置允许（显式请求 或 triggerOnNoMatch）。
  */
 export function shouldTryLLMGenerateFlow(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   message: string,
   routeMatched: boolean
 ): boolean {

@@ -2,7 +2,7 @@
  * Phase 16 WO-1624/1625: Critic — 评分公式、提示与 LLM 调用、选出最优 planId
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getLLMClient } from "../llm/index.js";
 import type { PlanVariant, PlanScore, CriticResult } from "./types.js";
 
@@ -78,7 +78,7 @@ export function parseCriticOutput(text: string, variantIds: string[]): CriticRes
 
 /** WO-1625: 调用 Critic LLM，返回 chosenPlanId 与 scores。解析失败时返回 null，调用方应中止探索。 */
 export async function callCritic(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   variants: PlanVariant[],
   taskDescription: string
 ): Promise<CriticResult | null> {

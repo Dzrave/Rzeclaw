@@ -4,11 +4,11 @@
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getEmbeddingProvider } from "./embed-client.js";
 import { addVector, writeVectors } from "./store.js";
 
-const MOTIVATION_DIR = ".rzeclaw/rag/motivation";
+const MOTIVATION_DIR = ".rezbot/rag/motivation";
 const MOTIVATION_FILE = "entries.json";
 
 /** 与 router_v1 对齐：动机命中后直接驱动 Executor / 会话 FSM */
@@ -72,7 +72,7 @@ function entryToEmbedText(e: MotivationEntry): string {
  * RAG-2: 重建 motivation 集合索引（从 entries.json 读取 → embed → 写入向量库）。
  */
 export async function indexMotivation(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspace: string
 ): Promise<{ indexed: number; errors: string[] }> {
   if (!config.vectorEmbedding?.enabled) return { indexed: 0, errors: [] };
@@ -84,7 +84,7 @@ export async function indexMotivation(
   const errors: string[] = [];
   if (entries.length === 0) return { indexed: 0, errors: [] };
   const texts = entries.map(entryToEmbedText);
-  const indexStoragePath = config.vectorEmbedding.indexStoragePath ?? ".rzeclaw/embeddings";
+  const indexStoragePath = config.vectorEmbedding.indexStoragePath ?? ".rezbot/embeddings";
   try {
     const embeddings = await provider.embed(texts);
     const vectorEntries = entries.map((e, i) => ({
@@ -108,7 +108,7 @@ export async function indexMotivation(
  * RAG-2: 追加一条动机条目并写入向量索引（LLM 澄清后固化时调用）。
  */
 export async function addMotivationEntry(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspace: string,
   entry: MotivationEntry
 ): Promise<{ success: boolean; error?: string }> {
@@ -128,7 +128,7 @@ export async function addMotivationEntry(
   const coll = config.vectorEmbedding.collections?.motivation;
   if (!coll?.enabled) return { success: true };
   const text = entryToEmbedText(entry);
-  const indexStoragePath = config.vectorEmbedding.indexStoragePath ?? ".rzeclaw/embeddings";
+  const indexStoragePath = config.vectorEmbedding.indexStoragePath ?? ".rezbot/embeddings";
   try {
     const [emb] = await provider.embed([text]);
     if (emb?.length) {

@@ -23,7 +23,7 @@ describe("exploration experience WO-1659", () => {
   };
 
   it("writeEntry then listRecent returns the entry", async () => {
-    workspace = await mkdtemp(join(tmpdir(), "rzeclaw-exp-"));
+    workspace = await mkdtemp(join(tmpdir(), "rezbot-exp-"));
     const entry = writeEntry(workspace, {
       task_signature: "请帮我设计模块架构",
       chosen_plan: minimalPlan,
@@ -39,7 +39,7 @@ describe("exploration experience WO-1659", () => {
   });
 
   it("findBestMatch hits same message with score >= threshold", async () => {
-    workspace = await mkdtemp(join(tmpdir(), "rzeclaw-exp2-"));
+    workspace = await mkdtemp(join(tmpdir(), "rezbot-exp2-"));
     writeEntry(workspace, {
       task_signature: "请帮我设计模块架构",
       chosen_plan: minimalPlan,
@@ -53,7 +53,7 @@ describe("exploration experience WO-1659", () => {
   });
 
   it("updateOutcome updates outcome_success_count and outcome_fail_count", async () => {
-    workspace = await mkdtemp(join(tmpdir(), "rzeclaw-exp3-"));
+    workspace = await mkdtemp(join(tmpdir(), "rezbot-exp3-"));
     const entry = writeEntry(workspace, {
       task_signature: "test outcome",
       chosen_plan: minimalPlan,

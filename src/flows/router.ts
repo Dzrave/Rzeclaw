@@ -7,7 +7,7 @@ import { extractTaskHint } from "../memory/task-hint.js";
 import type { FlowsRouteEntry, FlowsSlotRule } from "../config.js";
 import type { FlowDef } from "./types.js";
 import type { FlowSuccessRate } from "./outcomes.js";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getAgentBlueprint, hasAgentsEnabled } from "../agents/blueprints.js";
 
 export type MatchFlowContext = {
@@ -31,7 +31,7 @@ export type RouteResult = {
 
 /** Phase 14B: route() 的上下文（含 config 与 flow 库） */
 export type RouteContext = {
-  config: RzeclawConfig;
+  config: RezBotConfig;
   flowLibrary: Map<string, FlowDef>;
   successRates?: Map<string, FlowSuccessRate>;
 };

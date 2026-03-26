@@ -1,7 +1,7 @@
 {
-  "name": "rzeclaw-terminal",
+  "name": "rezbot-terminal",
   "version": "0.1.0",
-  "description": "Rzeclaw desktop terminal (Channel) — Windows",
+  "description": "RezBot desktop terminal (Channel) — Windows",
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -10,8 +10,8 @@
     "dist": "electron-builder --win"
   },
   "build": {
-    "appId": "com.rzeclaw.terminal",
-    "productName": "Rzeclaw Terminal",
+    "appId": "com.rezbot.terminal",
+    "productName": "RezBot Terminal",
     "directories": {
       "output": "dist"
     },

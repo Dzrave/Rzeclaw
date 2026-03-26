@@ -4,7 +4,12 @@ import { initRouter } from './lib/router.js';
 import { GatewayClient } from './lib/gateway-client.js';
 import { renderApp } from './components/shell/app-shell.js';
 
+let bootstrapped = false;
+
 async function bootstrap() {
+  if (bootstrapped) return;
+  bootstrapped = true;
+
   // 1. Initialize i18n
   await initI18n();
 
@@ -17,7 +22,7 @@ async function bootstrap() {
   // 4. Initialize router (hash-based SPA routing)
   initRouter();
 
-  console.log('[Rzeclaw UI] Bootstrap complete');
+  console.log('[RezBot UI] Bootstrap complete');
 }
 
 bootstrap().catch(console.error);

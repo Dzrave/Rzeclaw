@@ -3,7 +3,7 @@
  */
 
 import { createHash } from "node:crypto";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import type { SnapshotContext } from "./types.js";
 import type { FlowDef } from "../flows/types.js";
 import { getMergedTools } from "../tools/merged.js";
@@ -71,7 +71,7 @@ function computeSnapshotDigest(actions: { id: string }[]): string {
  * 若未传 toolNames，则通过 getMergedTools(config, workspace) 获取。
  */
 export async function buildSnapshotContext(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   options: {
     workspace: string;
     message: string;

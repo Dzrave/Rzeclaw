@@ -17,7 +17,7 @@ import {
 describe("memory rolling ledger WO-1752", () => {
   let workspace;
   beforeEach(() => {
-    workspace = mkdtempSync(join(tmpdir(), "rzeclaw-roll-"));
+    workspace = mkdtempSync(join(tmpdir(), "rezbot-roll-"));
   });
   afterEach(() => {
     if (workspace) rmSync(workspace, { recursive: true, force: true });

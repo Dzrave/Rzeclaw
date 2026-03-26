@@ -36,7 +36,7 @@ async function main() {
   }
   if (mode === "config" || mode === "all") {
     try {
-      const out = await run("node", ["rzeclaw.mjs", "health"]);
+      const out = await run("node", ["rezbot.mjs", "health"]);
       const j = JSON.parse(out);
       if (j.configLoaded) console.log("[OK] config loaded");
       if (!j.apiKeySet) console.warn("[WARN] API key not set (optional for health)");

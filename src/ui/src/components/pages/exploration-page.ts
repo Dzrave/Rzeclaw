@@ -519,9 +519,9 @@ function bindEvents(): void {
       // If RPC not available, load placeholder data for demonstration
       if (discoveredNodes.length === 0) {
         discoveredNodes = [
-          { hostname: 'rzeclaw-node-1', ip: '192.168.1.10', port: 9100, status: 'online', lastSeen: new Date().toISOString() },
-          { hostname: 'rzeclaw-node-2', ip: '192.168.1.11', port: 9100, status: 'online', lastSeen: new Date().toISOString() },
-          { hostname: 'rzeclaw-node-3', ip: '192.168.1.12', port: 9100, status: 'offline', lastSeen: new Date(Date.now() - 300000).toISOString() },
+          { hostname: 'rezbot-node-1', ip: '192.168.1.10', port: 9100, status: 'online', lastSeen: new Date().toISOString() },
+          { hostname: 'rezbot-node-2', ip: '192.168.1.11', port: 9100, status: 'online', lastSeen: new Date().toISOString() },
+          { hostname: 'rezbot-node-3', ip: '192.168.1.12', port: 9100, status: 'offline', lastSeen: new Date(Date.now() - 300000).toISOString() },
         ];
       }
     }

@@ -2,7 +2,7 @@
  * Phase 16 WO-1621/1622: Planner — 系统提示词模板、LLM 调用、解析 PlanVariant[] 或 Plan_Fallback
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getLLMClient } from "../llm/index.js";
 import type { SnapshotContext } from "./types.js";
 import type { PlanVariant, PlanFallback } from "./types.js";
@@ -128,7 +128,7 @@ export function parsePlannerOutput(
 
 /** WO-1622: 调用 Planner LLM（仅文本，无工具），返回 PlanVariant[] 或 Plan_Fallback；LLM 异常时抛出，由 tryExploration 捕获并回退 */
 export async function callPlanner(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   snapshot: SnapshotContext,
   userMessage: string
 ): Promise<{ variants: PlanVariant[] } | { fallback: PlanFallback }> {

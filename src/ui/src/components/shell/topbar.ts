@@ -6,6 +6,9 @@ import { t, getLocale, setLocale, getSupportedLocales, getLocaleDisplayName } fr
 import { GatewayClient } from '../../lib/gateway-client.js';
 import { onRouteChange, getCurrentRoute } from '../../lib/router.js';
 
+let routeUnsub: (() => void) | null = null;
+let stateUnsub: (() => void) | null = null;
+
 export function renderTopbar(container: HTMLElement): void {
   const currentRoute = getCurrentRoute();
   const locale = getLocale();
@@ -95,15 +98,17 @@ export function renderTopbar(container: HTMLElement): void {
   // Close dropdown on outside click
   document.addEventListener('click', () => {
     dropdown?.classList.add('hidden');
-  });
+  }, { once: true });
 
-  // Update on route change
-  onRouteChange(() => {
+  // Update on route change (unsub previous first)
+  if (routeUnsub) routeUnsub();
+  routeUnsub = onRouteChange(() => {
     renderTopbar(container);
   });
 
-  // Update on connection state change
-  GatewayClient.onStateChange(() => {
+  // Update on connection state change (unsub previous first)
+  if (stateUnsub) stateUnsub();
+  stateUnsub = GatewayClient.onStateChange(() => {
     renderTopbar(container);
   });
 }

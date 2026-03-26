@@ -3,7 +3,7 @@
  * Phase 9: 开头同步画布到任务；Check 可选 LLM；Act 可选仅写 pending。
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { syncCanvasToTasks } from "../proactive/canvas-sync.js";
 import { orient } from "./orient.js";
 import { check, checkWithLLM } from "./check.js";
@@ -14,7 +14,7 @@ import { record } from "./record.js";
  * 执行一次 Heartbeat 循环。
  */
 export async function runHeartbeatTick(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspaceRoot: string
 ): Promise<{ executed: boolean; content?: string; error?: string; pending?: string }> {
   await syncCanvasToTasks(workspaceRoot);

@@ -6,7 +6,7 @@
 import { appendFile, readFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 
-const MEMORY_DIR = ".rzeclaw/memory";
+const MEMORY_DIR = ".rezbot/memory";
 
 function getTodayDateLocal(): string {
   return new Date().toISOString().slice(0, 10);

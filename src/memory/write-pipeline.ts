@@ -4,7 +4,7 @@
 
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getLLMClient } from "../llm/index.js";
 import type { Message } from "../agent/context.js";
 import type { IMemoryStore } from "./store-interface.js";
@@ -54,7 +54,7 @@ function parseSummaryAndFacts(text: string): { summary: string; facts: string[] 
 }
 
 export async function flushToL1(params: {
-  config: RzeclawConfig;
+  config: RezBotConfig;
   sessionId: string;
   messages: Message[];
   store: IMemoryStore;
@@ -144,7 +144,7 @@ export async function flushToL1(params: {
 
 /** WO-505: 仅生成 L0 会话内摘要（不写 L1），供多轮时「每 M 轮摘要 + 最近轮」使用。 */
 export async function generateL0Summary(params: {
-  config: RzeclawConfig;
+  config: RezBotConfig;
   messages: Message[];
 }): Promise<string> {
   if (params.messages.length === 0) return "";

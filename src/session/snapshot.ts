@@ -22,7 +22,7 @@ export type SessionSnapshot = {
 const SNAPSHOT_DIR = "snapshots";
 
 function snapshotPath(workspaceDir: string, sessionId: string): string {
-  return path.join(workspaceDir, ".rzeclaw", SNAPSHOT_DIR, `${sessionId}.json`);
+  return path.join(workspaceDir, ".rezbot", SNAPSHOT_DIR, `${sessionId}.json`);
 }
 
 /**
@@ -74,7 +74,7 @@ export async function listSnapshots(
   workspaceDir: string,
   limit: number = 50
 ): Promise<Array<{ sessionId: string; savedAt: string; sessionType?: string }>> {
-  const dir = path.join(workspaceDir, ".rzeclaw", SNAPSHOT_DIR);
+  const dir = path.join(workspaceDir, ".rezbot", SNAPSHOT_DIR);
   const { readdir, stat } = await import("node:fs/promises");
   try {
     const files = await readdir(dir);

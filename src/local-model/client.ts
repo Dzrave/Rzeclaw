@@ -2,11 +2,11 @@
  * WO-LM-002: 本地推理客户端。按 provider 调用 Ollama 或 OpenAI 兼容的 chat/completion，超时与错误处理。
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 
-function getLocalModelConfig(config: RzeclawConfig): {
+function getLocalModelConfig(config: RezBotConfig): {
   endpoint: string;
   model: string;
   provider: "ollama" | "openai-compatible";
@@ -28,7 +28,7 @@ function getLocalModelConfig(config: RzeclawConfig): {
  * 调用本地模型单轮补全；返回模型输出文本，失败抛错或超时。
  */
 export async function localModelComplete(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   prompt: string,
   systemPrompt?: string
 ): Promise<string> {

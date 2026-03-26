@@ -2,7 +2,7 @@
  * WO-LM-003: 意图分类对接 Router。规则未命中时调用本地模型得到 router_v1，与动机 RAG、规则路由统一数据流。
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { localModelComplete } from "./client.js";
 import type { RouterV1, RouterV1State } from "./types.js";
 
@@ -59,7 +59,7 @@ export type CallIntentClassifierResult =
  * flowIdsInLibrary 用于校验 ROUTE_TO_LOCAL_FLOW 时的 flowId 是否合法。
  */
 export async function callIntentClassifier(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   message: string,
   flowIdsInLibrary: Set<string>
 ): Promise<CallIntentClassifierResult> {

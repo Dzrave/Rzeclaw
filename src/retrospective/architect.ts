@@ -2,7 +2,7 @@
  * RAG-4: 架构师 Agent（只读分析 + 补丁生成）。不直接写库，产出写入待审区。
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getLLMClient } from "../llm/index.js";
 import { readTelemetry } from "./telemetry.js";
 import { writePending } from "./pending.js";
@@ -14,7 +14,7 @@ const ARCHITECT_SYSTEM = `你是复盘架构师，只读遥测与元数据，产
 flow_edit 的 ops 为 applyEditOps 格式；motivation_merge 的 motivation 为动机条目；report 仅摘要无操作。探索经验修剪由系统自动产出，无需在此输出。`;
 
 export async function runRetrospective(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspace: string
 ): Promise<{ success: boolean; date: string; error?: string }> {
   if (!config.retrospective?.enabled) {

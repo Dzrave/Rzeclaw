@@ -3,7 +3,7 @@
  * 工单见 docs/PHASE16_EXPLORATION_WORK_ORDERS.md
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import type { FlowDef } from "../flows/types.js";
 import { buildSnapshotContext } from "./snapshot.js";
 import { callPlanner } from "./planner.js";
@@ -40,7 +40,7 @@ const DEFAULT_EXPLORATION_TIMEOUT_MS = 90_000;
  * 超时或异常时返回 useExploration: false，由调用方继续 runAgentLoop。
  */
 export async function tryExploration(context: {
-  config: RzeclawConfig;
+  config: RezBotConfig;
   message: string;
   correlationId: string;
   workspace: string;

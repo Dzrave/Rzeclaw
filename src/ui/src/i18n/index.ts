@@ -1,7 +1,7 @@
 import type { Locale, Namespace, TranslationMap, InterpolationParams } from './types.js';
 
 // ── Storage key ──
-const LOCALE_STORAGE_KEY = 'rzeclaw-locale';
+const LOCALE_STORAGE_KEY = 'rezbot-locale';
 const DEFAULT_LOCALE: Locale = 'zh-CN';
 const SUPPORTED_LOCALES: Locale[] = ['zh-CN', 'en', 'ja'];
 

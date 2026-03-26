@@ -24,10 +24,10 @@ export function generateSuggestions(report: DiagnosticReport): string[] {
 }
 
 const SUGGESTIONS_FILE = "self_improvement_suggestions.md";
-const RZECLAW_DIR = ".rzeclaw";
+const REZBOT_DIR = ".rezbot";
 
 /**
- * 将建议写入 workspace/.rzeclaw/self_improvement_suggestions.md
+ * 将建议写入 workspace/.rezbot/self_improvement_suggestions.md
  */
 export async function writeSuggestionsFile(
   workspaceDir: string,
@@ -35,7 +35,7 @@ export async function writeSuggestionsFile(
   customSuggestions?: string[]
 ): Promise<string> {
   const suggestions = customSuggestions ?? generateSuggestions(report);
-  const dir = path.join(workspaceDir, RZECLAW_DIR);
+  const dir = path.join(workspaceDir, REZBOT_DIR);
   await mkdir(dir, { recursive: true });
   const filePath = path.join(dir, SUGGESTIONS_FILE);
   const content = `# 自我改进建议\n\n生成时间: ${report.generatedAt}\n\n## 建议\n\n${suggestions.map((s) => `- ${s}`).join("\n")}\n`;

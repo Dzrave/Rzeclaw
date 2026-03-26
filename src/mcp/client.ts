@@ -41,7 +41,7 @@ export async function connectAndListTools(
       cwd: workspaceRoot,
     });
     const client = new Client(
-      { name: "rzeclaw", version: "0.1.0" },
+      { name: "rezbot", version: "0.1.0" },
       { capabilities: {} }
     );
     await client.connect(transport);

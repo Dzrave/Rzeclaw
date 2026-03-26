@@ -1,7 +1,7 @@
 import { WebSocketServer, type WebSocket } from "ws";
 import http from "node:http";
 import { runAgentLoop } from "../agent/loop.js";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import {
   subscribe,
   publish,
@@ -115,7 +115,7 @@ function getOrCreateSession(sessionId: string, sessionType?: string): Session {
   return s;
 }
 
-export function createGatewayServer(config: RzeclawConfig, port: number): void {
+export function createGatewayServer(config: RezBotConfig, port: number): void {
   const host = config.gateway?.host ?? "127.0.0.1";
 
   // ── HTTP server for SPA static files + WebSocket upgrade ──
@@ -214,13 +214,13 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
   httpServer.listen(port, host);
 
   httpServer.on("listening", () => {
-    console.log(`[rzeclaw] Gateway http://${host}:${port} (WS + UI)`);
+    console.log(`[rezbot] Gateway http://${host}:${port} (WS + UI)`);
     const intervalMinutes = config.heartbeat?.intervalMinutes ?? 0;
     if (intervalMinutes > 0) {
       const workspace = path.resolve(config.workspace);
       const run = () => {
         runHeartbeatTick(config, workspace).catch((e) =>
-          console.error("[rzeclaw] Heartbeat tick error:", e)
+          console.error("[rezbot] Heartbeat tick error:", e)
         );
       };
       setInterval(run, intervalMinutes * 60 * 1000);
@@ -229,17 +229,17 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
       try {
         const Bonjour = require("bonjour") as () => { publish: (opts: { name: string; type: string; port: number }) => unknown; destroy?: () => void };
         bonjourInstance = Bonjour();
-        bonjourInstance.publish({ name: "Rzeclaw", type: "rzeclaw", port });
-        console.log("[rzeclaw] mDNS discovery: _rzeclaw._tcp advertised");
+        bonjourInstance.publish({ name: "RezBot", type: "rezbot", port });
+        console.log("[rezbot] mDNS discovery: _rezbot._tcp advertised");
       } catch (e) {
-        console.error("[rzeclaw] mDNS discovery failed:", e);
+        console.error("[rezbot] mDNS discovery failed:", e);
       }
     }
     if (config.knowledge?.ingestOnStart === true && Array.isArray(config.knowledge.ingestPaths) && config.knowledge.ingestPaths.length > 0) {
       const workspace = path.resolve(config.workspace);
       ingestPaths(workspace, config.knowledge.ingestPaths, { workspaceId: config.memory?.workspaceId }).then((r) => {
-        console.log(`[rzeclaw] Knowledge ingest on start: ok=${r.ok} failed=${r.failed}`);
-      }).catch((e) => console.error("[rzeclaw] Knowledge ingest on start error:", e));
+        console.log(`[rezbot] Knowledge ingest on start: ok=${r.ok} failed=${r.failed}`);
+      }).catch((e) => console.error("[rezbot] Knowledge ingest on start error:", e));
     }
     const scheduleDays = config.diagnostic?.intervalDaysSchedule ?? 0;
     if (scheduleDays > 0) {
@@ -249,8 +249,8 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
         (async () => {
           const { report, filePath } = await generateReport(config, { workspace, days: scheduleDays });
           await writeSuggestionsFile(workspace, report);
-          console.log("[rzeclaw] Diagnostic report:", filePath);
-        })().catch((e) => console.error("[rzeclaw] Diagnostic report error:", e));
+          console.log("[rezbot] Diagnostic report:", filePath);
+        })().catch((e) => console.error("[rezbot] Diagnostic report error:", e));
       }, intervalMs);
     }
     const hotReloadInterval = config.hotReload?.intervalSeconds ?? 0;
@@ -265,7 +265,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
             if (lastMtime > 0 && m > lastMtime) {
               const result = reloadConfig(config);
               if (result.ok) {
-                console.log("[rzeclaw] config hot-reloaded (mtime change)");
+                console.log("[rezbot] config hot-reloaded (mtime change)");
               }
             }
             lastMtime = m;
@@ -311,14 +311,14 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
                 await mergeRollingLedgerPendingIntoReport(workspace, today, result.foldedPendingTasks);
               }
               if (result.success) {
-                console.log("[rzeclaw] Rolling ledger fold completed for", yesterdayStr);
+                console.log("[rezbot] Rolling ledger fold completed for", yesterdayStr);
               }
             } catch (e) {
-              console.error("[rzeclaw] Rolling ledger fold error:", e);
+              console.error("[rezbot] Rolling ledger fold error:", e);
             }
           })().catch(() => {});
         }, 60 * 1000);
-        console.log("[rzeclaw] Rolling ledger foldCron scheduled:", foldCron);
+        console.log("[rezbot] Rolling ledger foldCron scheduled:", foldCron);
       }
     }
   });
@@ -622,9 +622,9 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
           }
           const result = reloadConfig(config);
           if (result.ok) {
-            console.log("[rzeclaw] config hot-reloaded");
+            console.log("[rezbot] config hot-reloaded");
             try {
-              const auditDir = path.join(path.resolve(config.workspace), ".rzeclaw");
+              const auditDir = path.join(path.resolve(config.workspace), ".rezbot");
               await access(auditDir).catch(() => import("node:fs/promises").then(({ mkdir }) => mkdir(auditDir, { recursive: true })));
               const { appendFile } = await import("node:fs/promises");
               await appendFile(
@@ -706,7 +706,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
                     sessionGoal: session.sessionGoal,
                     sessionSummary: session.sessionSummary,
                     sessionType: session.sessionType,
-                  }).catch((e) => console.error("[rzeclaw] snapshot write error:", e));
+                  }).catch((e) => console.error("[rezbot] snapshot write error:", e));
                 }
                 if (response.error) {
                   sendError(response.error);
@@ -1491,7 +1491,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
         if (method === "flows.list") {
           // P8-02: List all flows
           const workspace = path.resolve(config.workspace);
-          const libraryPath = config.flows?.libraryPath ?? ".rzeclaw/flows";
+          const libraryPath = config.flows?.libraryPath ?? ".rezbot/flows";
           try {
             const flows = await listFlows(workspace, libraryPath);
             send({ flows });
@@ -1504,7 +1504,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
         if (method === "flows.get") {
           // P8-02: Get single flow
           const workspace = path.resolve(config.workspace);
-          const libraryPath = config.flows?.libraryPath ?? ".rzeclaw/flows";
+          const libraryPath = config.flows?.libraryPath ?? ".rezbot/flows";
           const flowId = params.flowId ?? params.name;
           if (!flowId || typeof flowId !== "string") {
             sendError("flowId is required");
@@ -1535,7 +1535,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
           // P8-10: Memory layer statistics
           const workspace = path.resolve(config.workspace);
           try {
-            const l1Dir = path.join(workspace, ".rzeclaw");
+            const l1Dir = path.join(workspace, ".rezbot");
             const stats: Record<string, unknown> = {
               workspace,
               layers: {
@@ -1672,7 +1672,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
           const workspace = path.resolve(config.workspace);
           try {
             const snapshots = await listSnapshots(workspace);
-            const l1Path = path.join(workspace, ".rzeclaw", "memory_l1.jsonl");
+            const l1Path = path.join(workspace, ".rezbot", "memory_l1.jsonl");
             let l1EntryCount = 0;
             try {
               const l1Content = await readFile(l1Path, "utf-8");
@@ -1729,7 +1729,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
         if (method === "memory.layers") {
           const workspace = path.resolve(config.workspace);
           try {
-            const l1Dir = path.join(workspace, ".rzeclaw");
+            const l1Dir = path.join(workspace, ".rezbot");
             const layerPaths = {
               l1: path.join(l1Dir, "memory_l1.jsonl"),
               l2: path.join(l1Dir, "memory_l2.jsonl"),
@@ -1793,7 +1793,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
           try {
             const { fileName, content, encoding } = params as { fileName: string; content: string; encoding?: string };
             if (!fileName || content === undefined) { sendError("file.upload requires 'fileName' and 'content' params"); return; }
-            const uploadsDir = path.join(workspace, ".rzeclaw", "uploads");
+            const uploadsDir = path.join(workspace, ".rezbot", "uploads");
             await mkdir(uploadsDir, { recursive: true });
             const filePath = path.join(uploadsDir, fileName);
             const buf = encoding === "base64" ? Buffer.from(content, "base64") : content;
@@ -1809,7 +1809,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
         if (method === "diagnostic.export") {
           const workspace = path.resolve(config.workspace);
           try {
-            const telemetryPath = path.join(workspace, ".rzeclaw", "telemetry.jsonl");
+            const telemetryPath = path.join(workspace, ".rezbot", "telemetry.jsonl");
             const contents = await readFile(telemetryPath, "utf-8");
             send({ telemetry: contents });
           } catch (e: unknown) {
@@ -1834,7 +1834,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
         // ── P8-03: flows.execute ──
         if (method === "flows.execute") {
           const workspace = path.resolve(config.workspace);
-          const libraryPath = config.flows?.libraryPath ?? ".rzeclaw/flows";
+          const libraryPath = config.flows?.libraryPath ?? ".rezbot/flows";
           try {
             const { flowId, params: flowParams } = params as { flowId: string; params?: Record<string, unknown> };
             if (!flowId) { sendError("flows.execute requires 'flowId'"); return; }
@@ -1869,7 +1869,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
         // ── P8-03: flows.history ──
         if (method === "flows.history") {
           const workspace = path.resolve(config.workspace);
-          const libraryPath = config.flows?.libraryPath ?? ".rzeclaw/flows";
+          const libraryPath = config.flows?.libraryPath ?? ".rezbot/flows";
           try {
             const { flowId } = params as { flowId?: string };
             const rates = await getFlowSuccessRates(workspace, libraryPath);
@@ -1903,7 +1903,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
         if (method === "exploration.history") {
           const workspace = path.resolve(config.workspace);
           try {
-            const explorationDir = path.join(workspace, ".rzeclaw", "exploration");
+            const explorationDir = path.join(workspace, ".rezbot", "exploration");
             let records: unknown[] = [];
             try {
               const files = await readdir(explorationDir);
@@ -1927,7 +1927,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
           const workspace = path.resolve(config.workspace);
           try {
             const { limit = 100, riskLevel } = params as { limit?: number; riskLevel?: string };
-            const auditPath = path.join(workspace, ".rzeclaw", "audit.jsonl");
+            const auditPath = path.join(workspace, ".rezbot", "audit.jsonl");
             let entries: unknown[] = [];
             try {
               const raw = await readFile(auditPath, "utf-8");
@@ -1982,7 +1982,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
         if (method === "agents.tokenUsage") {
           const workspace = path.resolve(config.workspace);
           try {
-            const telemetryPath = path.join(workspace, ".rzeclaw", "telemetry.jsonl");
+            const telemetryPath = path.join(workspace, ".rezbot", "telemetry.jsonl");
             const summary: Record<string, { inputTokens: number; outputTokens: number; calls: number }> = {};
             try {
               const raw = await readFile(telemetryPath, "utf-8");
@@ -2045,7 +2045,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
         // ── P8-12: memory.browseArchive ──
         if (method === "memory.browseArchive") {
           const workspace = path.resolve(config.workspace);
-          const coldDir = path.join(workspace, ".rzeclaw", "cold");
+          const coldDir = path.join(workspace, ".rezbot", "cold");
           try {
             const files = await readdir(coldDir).catch(() => [] as string[]);
             const entries: Array<{ file: string; date: string; preview: string; size: number }> = [];
@@ -2074,7 +2074,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
           const workspace = path.resolve(config.workspace);
           try {
             let purged = 0;
-            const cacheDir = path.join(workspace, ".rzeclaw", "cache");
+            const cacheDir = path.join(workspace, ".rezbot", "cache");
             const files = await readdir(cacheDir).catch(() => [] as string[]);
             for (const f of files) {
               try {
@@ -2152,7 +2152,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
             };
             if (!name) { sendError("rag.collections.create requires 'name'"); return; }
             const workspace = path.resolve(config.workspace);
-            const collDir = path.join(workspace, ".rzeclaw", "rag", name);
+            const collDir = path.join(workspace, ".rezbot", "rag", name);
             await mkdir(collDir, { recursive: true });
             const meta = { name, description: description ?? "", embeddingModel: embeddingModel ?? "text-embedding-ada-002", createdAt: new Date().toISOString() };
             await writeFile(path.join(collDir, "meta.json"), JSON.stringify(meta, null, 2));
@@ -2176,7 +2176,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
               try {
                 publish("rag.ingest.progress", { correlationId, status: "started", collection });
                 const workspace = path.resolve(config.workspace);
-                const ingestDir = path.join(workspace, ".rzeclaw", "rag", collection, "ingested");
+                const ingestDir = path.join(workspace, ".rezbot", "rag", collection, "ingested");
                 await mkdir(ingestDir, { recursive: true });
                 const fn = fileName ?? `doc-${Date.now()}.txt`;
                 await writeFile(path.join(ingestDir, fn), content);
@@ -2196,7 +2196,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
         if (method === "security.audit.size") {
           const workspace = path.resolve(config.workspace);
           try {
-            const auditPath = path.join(workspace, ".rzeclaw", "audit.jsonl");
+            const auditPath = path.join(workspace, ".rezbot", "audit.jsonl");
             const st = await stat(auditPath).catch(() => null);
             const sizeBytes = st?.size ?? 0;
             const formatSize = (b: number) => {
@@ -2225,7 +2225,7 @@ export function createGatewayServer(config: RzeclawConfig, port: number): void {
             const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
             // Log to audit
             const workspace = path.resolve(config.workspace);
-            const auditPath = path.join(workspace, ".rzeclaw", "audit.jsonl");
+            const auditPath = path.join(workspace, ".rezbot", "audit.jsonl");
             const auditEntry = JSON.stringify({
               id: requestId,
               type: "scope.request",
@@ -2279,7 +2279,7 @@ const MIME_TYPES: Record<string, string> = {
   ".map": "application/json",
 };
 
-function serveStaticUI(req: http.IncomingMessage, res: http.ServerResponse, _config: RzeclawConfig): void {
+function serveStaticUI(req: http.IncomingMessage, res: http.ServerResponse, _config: RezBotConfig): void {
   // Resolve the dist/ui directory relative to project root
   const distDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../dist/ui");
 
@@ -2315,7 +2315,7 @@ function serveStaticUI(req: http.IncomingMessage, res: http.ServerResponse, _con
         } else {
           // No UI build found — return minimal 404
           res.writeHead(404, { "Content-Type": "text/plain" });
-          res.end("Rzeclaw UI not found. Run: cd src/ui && npm run build");
+          res.end("RezBot UI not found. Run: cd src/ui && npm run build");
         }
       });
     }

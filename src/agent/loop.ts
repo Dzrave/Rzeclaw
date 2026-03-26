@@ -1,4 +1,4 @@
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getRoleFragment } from "../config.js";
 import { getLLMClient } from "../llm/index.js";
 import type { LLMMessage } from "../llm/types.js";
@@ -69,7 +69,7 @@ function toolResultToContent(result: ToolResult): string {
 }
 
 export async function runAgentLoop(params: {
-  config: RzeclawConfig;
+  config: RezBotConfig;
   userMessage: string;
   sessionMessages: Message[];
   sessionId?: string;
@@ -107,7 +107,7 @@ export async function runAgentLoop(params: {
   toolsOverride?: ToolDef[];
 }): Promise<{ content: string; messages: Message[]; sessionId: string; citedMemoryIds?: string[] }> {
   const sessionId = params.sessionId ?? randomUUID();
-  const observabilityDir = path.join(path.resolve(params.config.workspace), ".rzeclaw");
+  const observabilityDir = path.join(path.resolve(params.config.workspace), ".rezbot");
   setMetricsDir(observabilityDir);
 
   const llmClient = getLLMClient(params.config);

@@ -3,8 +3,8 @@
  * 设计依据: docs/MULTI_AGENT_ENTITY_DESIGN.md §6.1
  *
  * 与全局记忆关系：
- * - 全局：createStore(workspace, config.memory.workspaceId) → .rzeclaw/memory/<workspaceId>.jsonl
- * - 局部：createStore(workspace, getAgentMemoryWorkspaceId(blueprintId)) → .rzeclaw/memory/agent_<blueprintId>.jsonl
+ * - 全局：createStore(workspace, config.memory.workspaceId) → .rezbot/memory/<workspaceId>.jsonl
+ * - 局部：createStore(workspace, getAgentMemoryWorkspaceId(blueprintId)) → .rezbot/memory/agent_<blueprintId>.jsonl
  * 检索/写入时使用对应 store；可选「局部 + 全局只读」由 runAgentLoop 的 localMemoryScope.includeGlobal 控制。
  */
 

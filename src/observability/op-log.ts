@@ -71,7 +71,7 @@ export type AppendOpLogOptions = {
 };
 
 /**
- * 追加一条操作记录到 workspace/.rzeclaw/ops.log；目录不存在则创建。
+ * 追加一条操作记录到 workspace/.rezbot/ops.log；目录不存在则创建。
  * WO-SEC-005: 写入前对 args、result_summary 脱敏，避免敏感信息落盘。
  * WO-1512: 传入 options.skipWrite 时跳过写入（隐私会话脱敏策略）。
  */
@@ -81,7 +81,7 @@ export async function appendOpLog(
   options?: AppendOpLogOptions
 ): Promise<void> {
   if (options?.skipWrite) return;
-  const dir = join(workspaceRoot, ".rzeclaw");
+  const dir = join(workspaceRoot, ".rezbot");
   const file = join(dir, OP_LOG_FILENAME);
   try {
     await mkdir(dir, { recursive: true });
@@ -97,7 +97,7 @@ export async function appendOpLog(
   }
 }
 
-const OP_LOG_PATH = (workspaceRoot: string) => join(workspaceRoot, ".rzeclaw", OP_LOG_FILENAME);
+const OP_LOG_PATH = (workspaceRoot: string) => join(workspaceRoot, ".rezbot", OP_LOG_FILENAME);
 
 /**
  * WO-IDE-013: 从 ops.log 末尾向前查找最近一条含 undo_hint 的条目。

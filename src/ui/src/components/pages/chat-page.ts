@@ -274,7 +274,7 @@ function renderMessage(msg: ChatMessage): string {
               <path d="M12 2a4 4 0 0 1 4 4v1a3 3 0 0 1 3 3 3 3 0 0 1-1 5.83V17a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4v-1.17A3 3 0 0 1 5 10a3 3 0 0 1 3-3V6a4 4 0 0 1 4-4z"/>
             </svg>
           </div>
-          <span class="text-xs text-on-surface-variant/60 font-label">Rzeclaw</span>
+          <span class="text-xs text-on-surface-variant/60 font-label">RezBot</span>
         </div>
         <div class="px-4 py-2.5 rounded-2xl rounded-bl-md bg-surface-container-high text-on-surface">
           <div class="text-sm whitespace-pre-wrap break-words chat-markdown">${formatAssistantContent(msg.content)}</div>

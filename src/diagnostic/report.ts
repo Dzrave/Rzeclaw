@@ -5,10 +5,10 @@
 import path from "node:path";
 import { readFile, mkdir, writeFile, readdir } from "node:fs/promises";
 import { readSessionMetricsFromDir } from "../observability/metrics.js";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { getHotFilePath } from "../memory/store-jsonl.js";
 
-const RZECLAW_DIR = ".rzeclaw";
+const REZBOT_DIR = ".rezbot";
 const DIAGNOSTIC_DIR = "diagnostics";
 const DEFAULT_DAYS = 7;
 
@@ -55,7 +55,7 @@ async function aggregateMemory(
     // no file
   }
   let auditWriteCount = 0;
-  const auditPath = path.join(workspaceDir, RZECLAW_DIR, "audit.jsonl");
+  const auditPath = path.join(workspaceDir, REZBOT_DIR, "audit.jsonl");
   try {
     const raw = await readFile(auditPath, "utf-8");
     auditWriteCount = raw.trim().split("\n").filter(Boolean).length;
@@ -70,7 +70,7 @@ async function aggregateHeartbeat(
   workspaceDir: string,
   since: string
 ): Promise<{ totalRuns: number; executedCount: number; errorCount: number; lastTs?: string }> {
-  const historyPath = path.join(workspaceDir, RZECLAW_DIR, "heartbeat_history.jsonl");
+  const historyPath = path.join(workspaceDir, REZBOT_DIR, "heartbeat_history.jsonl");
   let totalRuns = 0;
   let executedCount = 0;
   let errorCount = 0;
@@ -116,7 +116,7 @@ export type DiagnosticReport = {
 
 /** WO-1205: 生成完整报告并写入文件 */
 export async function generateReport(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   options: { workspace?: string; days?: number } = {}
 ): Promise<{ report: DiagnosticReport; filePath: string }> {
   const workspaceDir = path.resolve(options.workspace ?? config.workspace);
@@ -149,7 +149,7 @@ export async function generateReport(
 
   const outDir = config.diagnostic?.outputPath
     ? path.join(workspaceDir, config.diagnostic.outputPath)
-    : path.join(workspaceDir, RZECLAW_DIR, DIAGNOSTIC_DIR);
+    : path.join(workspaceDir, REZBOT_DIR, DIAGNOSTIC_DIR);
   await mkdir(outDir, { recursive: true });
   const dateStr = new Date().toISOString().slice(0, 10);
   const filePath = path.join(outDir, `report_${dateStr}.json`);

@@ -2,7 +2,7 @@
  * RAG-1: 向量嵌入客户端。按配置调用 Ollama 或 OpenAI 兼容的 /embeddings 接口。
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 
 export type EmbeddingProvider = {
   embed(texts: string[]): Promise<number[][]>;
@@ -62,7 +62,7 @@ async function fetchEmbeddings(
   throw new Error("Unexpected embedding API response shape");
 }
 
-export function getEmbeddingProvider(config: RzeclawConfig): EmbeddingProvider | null {
+export function getEmbeddingProvider(config: RezBotConfig): EmbeddingProvider | null {
   const ve = config.vectorEmbedding;
   if (!ve?.enabled || !ve.endpoint || !ve.model) return null;
   const provider = ve.provider ?? "ollama";

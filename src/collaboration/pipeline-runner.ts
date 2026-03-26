@@ -3,7 +3,7 @@
  * 设计依据: docs/EVENT_BUS_COLLABORATION_DESIGN.md §3
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import type { ChatResponseEvent } from "../event-bus/schema.js";
 import type { PipelineStageDoneEvent } from "../event-bus/collaboration-schema.js";
 import { TOPIC_PIPELINE_STAGE_DONE } from "../event-bus/collaboration-schema.js";
@@ -29,7 +29,7 @@ function isPipelineStageDoneEvent(p: unknown): p is PipelineStageDoneEvent {
  * 处理 pipeline.stage_done：无 nextAgentId 时发布 chat.response 结束流水线；有则运行下一环并发布 stage_done 或 chat.response。
  */
 export async function handlePipelineStageDone(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   event: PipelineStageDoneEvent,
   onStream?: (chunk: string) => void
 ): Promise<void> {

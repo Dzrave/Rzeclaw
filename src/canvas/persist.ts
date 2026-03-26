@@ -1,6 +1,6 @@
 /**
  * WO-602: Canvas 持久化读写。
- * 存储路径：workspace/.rzeclaw/canvas/current.json
+ * 存储路径：workspace/.rezbot/canvas/current.json
  */
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
@@ -8,7 +8,7 @@ import { join } from "node:path";
 import type { CurrentPlan, Step } from "./types.js";
 import { EMPTY_PLAN } from "./types.js";
 
-const CANVAS_DIR = ".rzeclaw";
+const CANVAS_DIR = ".rezbot";
 const CANVAS_FILE = "current.json";
 
 function canvasPath(workspaceRoot: string): string {

@@ -42,7 +42,7 @@ export function publish(topic: Topic, payload: Payload): void {
     try {
       cb(payload);
     } catch (e) {
-      console.error("[rzeclaw] EventBus subscriber error:", e);
+      console.error("[rezbot] EventBus subscriber error:", e);
     }
   }
 }

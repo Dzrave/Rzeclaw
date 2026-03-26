@@ -18,7 +18,7 @@ export type RollingLedgerConfig = {
 
 export type MemoryConfig = {
   enabled?: boolean;
-  /** Storage path; default derived from workspace/.rzeclaw/memory */
+  /** Storage path; default derived from workspace/.rezbot/memory */
   storagePath?: string;
   /** Isolation: default from workspace path */
   workspaceId?: string;
@@ -38,7 +38,7 @@ export type InsertTreeConfig = {
   targetFlowId?: string;
   /** 目标 Selector 的 nodeId；若为空则用 root */
   targetSelectorNodeId?: string;
-  /** 进化产物存放目录，相对 workspace，默认 .rzeclaw/evolved_skills */
+  /** 进化产物存放目录，相对 workspace，默认 .rezbot/evolved_skills */
   evolvedSkillsDir?: string;
   sandboxTimeoutMs?: number;
   maxRetries?: number;
@@ -115,7 +115,7 @@ export type ExplorationConfig = {
 /** WO-606/608: 本地 Skill 目录，白名单加载 */
 export type SkillsConfig = {
   enabled?: boolean;
-  /** 相对 workspace 的目录，默认 .rzeclaw/skills */
+  /** 相对 workspace 的目录，默认 .rezbot/skills */
   dir?: string;
 };
 
@@ -149,7 +149,7 @@ export type HeartbeatConfig = {
 /** Phase 8: Gateway 监听与认证 */
 export type GatewayAuthConfig = {
   enabled?: boolean;
-  /** 环境变量名，用于读取 API Key；默认 RZECLAW_GATEWAY_API_KEY */
+  /** 环境变量名，用于读取 API Key；默认 REZBOT_GATEWAY_API_KEY */
   apiKeyEnv?: string;
 };
 
@@ -197,7 +197,7 @@ export type KnowledgeConfig = {
 export type DiagnosticConfig = {
   /** 报告时间范围（天）；默认 7 */
   intervalDays?: number;
-  /** 报告输出目录，相对 workspace，默认 .rzeclaw/diagnostics */
+  /** 报告输出目录，相对 workspace，默认 .rezbot/diagnostics */
   outputPath?: string;
   /** 定时报告间隔（天），0=不定时 */
   intervalDaysSchedule?: number;
@@ -273,7 +273,7 @@ export type VectorEmbeddingConfig = {
   endpoint?: string;
   /** 模型名，如 nomic-embed-text、text-embedding-3-small */
   model?: string;
-  /** 索引存储路径，相对 workspace，如 .rzeclaw/embeddings */
+  /** 索引存储路径，相对 workspace，如 .rezbot/embeddings */
   indexStoragePath?: string;
   /** 各集合（motivation、skills、flows、external_* 等） */
   collections?: Record<string, VectorEmbeddingCollectionConfig>;
@@ -294,7 +294,7 @@ export type GenerateFlowConfig = {
 export type FlowsConfig = {
   /** 关闭则所有请求仍走 Agent；未配置时默认关闭 */
   enabled?: boolean;
-  /** 相对 workspace 的目录，存放 flow JSON，如 .rzeclaw/flows */
+  /** 相对 workspace 的目录，存放 flow JSON，如 .rezbot/flows */
   libraryPath?: string;
   /** 意图/hint 到 flowId 的映射；可选 slotRules 从 message 抽取 params */
   routes?: FlowsRouteEntry[];
@@ -378,7 +378,7 @@ export type LlmConfig = {
   fallbackProvider?: "anthropic" | "deepseek" | "minimax";
 };
 
-export type RzeclawConfig = {
+export type RezBotConfig = {
   /** LLM model id (e.g. anthropic/claude-sonnet-4-20250514)；当配置了 llm 时由 llm.model 覆盖 */
   model: string;
   /** Workspace root for agent (files, cwd for bash) */
@@ -462,7 +462,7 @@ export type EventBusConfig = {
 /** Phase 14B: Agent 蓝图 — 局部记忆配置 */
 export type AgentLocalMemoryConfig = {
   enabled: boolean;
-  /** 相对 workspace 或独立路径；未配置时使用约定路径 .rzeclaw/memory/agent_<id>.jsonl */
+  /** 相对 workspace 或独立路径；未配置时使用约定路径 .rezbot/memory/agent_<id>.jsonl */
   storagePath?: string;
   /** 检索条数上限，默认 5 */
   retrieveLimit?: number;
@@ -504,7 +504,7 @@ export type AgentsConfig = {
 };
 
 
-const DEFAULT_WORKSPACE = join(homedir(), ".rzeclaw", "workspace");
+const DEFAULT_WORKSPACE = join(homedir(), ".rezbot", "workspace");
 const DEFAULT_PORT = 18789;
 
 /** WO-1526: 查找配置文件路径，供热重载 mtime 轮询使用 */
@@ -513,9 +513,9 @@ export function findConfigPath(): string | null {
   const home = homedir();
   const dir = platform() === "win32" ? process.env.USERPROFILE || home : home;
   const candidates = [
-    join(cwd, "rzeclaw.json"),
-    join(cwd, ".rzeclaw.json"),
-    join(dir, ".rzeclaw", "config.json"),
+    join(cwd, "rezbot.json"),
+    join(cwd, ".rezbot.json"),
+    join(dir, ".rezbot", "config.json"),
   ];
   for (const p of candidates) {
     if (existsSync(p)) return p;
@@ -528,9 +528,9 @@ function loadJson(path: string): Record<string, unknown> {
   return JSON.parse(raw) as Record<string, unknown>;
 }
 
-export function loadConfig(overridePath?: string): RzeclawConfig {
+export function loadConfig(overridePath?: string): RezBotConfig {
   const path = overridePath ?? findConfigPath();
-  const base: RzeclawConfig = {
+  const base: RezBotConfig = {
     model: "anthropic/claude-sonnet-4-20250514",
     workspace: DEFAULT_WORKSPACE,
     port: DEFAULT_PORT,
@@ -1095,7 +1095,7 @@ export function loadConfig(overridePath?: string): RzeclawConfig {
 }
 
 /** WO-1520: 可热重载的顶层配置键（不含 port、workspace、gateway.host 需保留） */
-export const RELOADABLE_CONFIG_KEYS: (keyof RzeclawConfig)[] = [
+export const RELOADABLE_CONFIG_KEYS: (keyof RezBotConfig)[] = [
   "model",
   "apiKeyEnv",
   "llm",
@@ -1128,12 +1128,12 @@ export const RELOADABLE_CONFIG_KEYS: (keyof RzeclawConfig)[] = [
 ];
 
 /** WO-1521: 重载配置 — 仅将可重载部分浅替换到 currentConfig，保留 port、workspace、gateway.host。单次请求内 config 不变（WO-1522）。 */
-export function reloadConfig(currentConfig: RzeclawConfig): { ok: true } | { ok: false; message: string } {
+export function reloadConfig(currentConfig: RezBotConfig): { ok: true } | { ok: false; message: string } {
   const path = findConfigPath();
   if (!path || !existsSync(path)) {
     return { ok: false, message: "Config file not found" };
   }
-  let newConfig: RzeclawConfig;
+  let newConfig: RezBotConfig;
   try {
     newConfig = loadConfig(path);
   } catch (e) {
@@ -1165,7 +1165,7 @@ const DEFAULT_ROLES: Record<string, string> = {
   general: "",
 };
 
-export function getRoleFragment(config: RzeclawConfig, sessionType: string | undefined): string | undefined {
+export function getRoleFragment(config: RezBotConfig, sessionType: string | undefined): string | undefined {
   if (!sessionType || sessionType === "general") return undefined;
   const fromConfig = (config.roles as Record<string, string | undefined> | undefined)?.[sessionType];
   const fragment = fromConfig ?? DEFAULT_ROLES[sessionType];
@@ -1174,13 +1174,13 @@ export function getRoleFragment(config: RzeclawConfig, sessionType: string | und
 }
 
 /** Phase 8: 读取 Gateway 认证用 API Key（环境变量） */
-export function getGatewayApiKey(config: RzeclawConfig): string | undefined {
-  const envName = config.gateway?.auth?.apiKeyEnv ?? "RZECLAW_GATEWAY_API_KEY";
+export function getGatewayApiKey(config: RezBotConfig): string | undefined {
+  const envName = config.gateway?.auth?.apiKeyEnv ?? "REZBOT_GATEWAY_API_KEY";
   return process.env[envName]?.trim() || undefined;
 }
 
 /** 解析后的 LLM 配置（供 LLM 客户端使用）；未配置 llm 时等价于 anthropic + 顶层 model/apiKeyEnv */
-export function getResolvedLlm(config: RzeclawConfig): {
+export function getResolvedLlm(config: RezBotConfig): {
   provider: LlmProvider;
   model: string;
   apiKeyEnv?: string;
@@ -1204,7 +1204,7 @@ export function getResolvedLlm(config: RzeclawConfig): {
   };
 }
 
-export function getApiKey(config: RzeclawConfig): string | undefined {
+export function getApiKey(config: RezBotConfig): string | undefined {
   const resolved = getResolvedLlm(config);
   if (resolved.provider === "ollama") return undefined;
   const envName = resolved.apiKeyEnv ?? "ANTHROPIC_API_KEY";
@@ -1212,14 +1212,14 @@ export function getApiKey(config: RzeclawConfig): string | undefined {
 }
 
 /** 当前配置下是否可调用主 LLM（runAgentLoop 可用：Ollama 或云端已配置 API Key） */
-export function isLlmReady(config: RzeclawConfig): boolean {
+export function isLlmReady(config: RezBotConfig): boolean {
   const resolved = getResolvedLlm(config);
   if (resolved.provider === "ollama") return true;
   return !!getApiKey(config);
 }
 
 /** WO-LM-003: 本地模型意图分类是否可用（enabled + endpoint + model + modes.intentClassifier.enabled） */
-export function isLocalIntentClassifierAvailable(config: RzeclawConfig): boolean {
+export function isLocalIntentClassifierAvailable(config: RezBotConfig): boolean {
   const lm = config.localModel;
   if (!lm?.enabled || !lm.endpoint || !lm.model) return false;
   return lm.modes?.intentClassifier?.enabled === true;

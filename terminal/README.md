@@ -1,6 +1,6 @@
-# Rzeclaw Terminal（Phase 7）
+# RezBot Terminal（Phase 7）
 
-桌面终端 Channel，通过 WebSocket 连接 Rzeclaw Gateway，实现会话与对话。
+桌面终端 Channel，通过 WebSocket 连接 RezBot Gateway，实现会话与对话。
 
 ## 功能
 
@@ -26,7 +26,7 @@ npm start
 首次运行若无 Gateway 地址会进入设置页。填写：
 
 - **Gateway 地址**：如 `ws://127.0.0.1:18789`（本机）或 `ws://192.168.x.x:18789`（局域网）。
-- **API Key**：若 Gateway 启用 `gateway.auth.enabled`，需设置环境变量 `RZECLAW_GATEWAY_API_KEY` 并在终端中填写相同值。
+- **API Key**：若 Gateway 启用 `gateway.auth.enabled`，需设置环境变量 `REZBOT_GATEWAY_API_KEY` 并在终端中填写相同值。
 
 保存后自动连接。可点击「设置」修改并重新连接。
 

@@ -13,7 +13,7 @@ export type RecordPayload = {
   suggestedInput?: string;
 };
 
-const DIR = ".rzeclaw";
+const DIR = ".rezbot";
 const FILE = "heartbeat_last.json";
 const HISTORY_FILE = "heartbeat_history.jsonl";
 

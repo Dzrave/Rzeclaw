@@ -41,7 +41,7 @@ export function emptyRollingLedger(): RollingLedger {
 }
 
 function ledgerPath(workspaceDir: string): string {
-  return path.join(workspaceDir, ".rzeclaw", "memory", FILENAME);
+  return path.join(workspaceDir, ".rezbot", "memory", FILENAME);
 }
 
 /**
@@ -74,7 +74,7 @@ export async function readRollingLedger(workspaceDir: string): Promise<RollingLe
  * WO-1702
  */
 export async function writeRollingLedger(workspaceDir: string, ledger: RollingLedger): Promise<void> {
-  const dir = path.join(workspaceDir, ".rzeclaw", "memory");
+  const dir = path.join(workspaceDir, ".rezbot", "memory");
   await mkdir(dir, { recursive: true });
   const filePath = path.join(dir, FILENAME);
   const payload: RollingLedger = {

@@ -5,7 +5,7 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { runAgentLoop } from "../agent/loop.js";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import type { CheckResult } from "./check.js";
 
 export type ActResult = {
@@ -16,13 +16,13 @@ export type ActResult = {
   pending?: string;
 };
 
-const PENDING_FILE = ".rzeclaw/heartbeat_pending.json";
+const PENDING_FILE = ".rezbot/heartbeat_pending.json";
 
 /**
  * 若有 suggestedInput：若 requireConfirmation 则仅写入 heartbeat_pending.json 并返回 pending；否则执行 runAgentLoop。
  */
 export async function act(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspaceRoot: string,
   checkResult: CheckResult
 ): Promise<ActResult> {
@@ -30,7 +30,7 @@ export async function act(
     return { executed: false };
   }
   if (config.heartbeat?.requireConfirmation) {
-    const dir = join(workspaceRoot, ".rzeclaw");
+    const dir = join(workspaceRoot, ".rezbot");
     await mkdir(dir, { recursive: true });
     await writeFile(
       join(workspaceRoot, PENDING_FILE),

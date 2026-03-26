@@ -9,12 +9,12 @@ import { loadConfig } from "./config.js";
 export type UninstallOptions = {
   /** 是否移除工作区目录（config.workspace）内的文件；默认 false = 保留 */
   removeWorkspace?: boolean;
-  /** 是否移除 rzeclaw.json / .rzeclaw.json；默认 false = 保留 */
+  /** 是否移除 rezbot.json / .rezbot.json；默认 false = 保留 */
   removeConfig?: boolean;
   /** 是否移除 .env；默认 false = 保留 */
   removeEnv?: boolean;
-  /** 是否移除工作区内的 .rzeclaw 目录（记忆、快照、画布等）；默认 false = 保留 */
-  removeRzeclawData?: boolean;
+  /** 是否移除工作区内的 .rezbot 目录（记忆、快照、画布等）；默认 false = 保留 */
+  removeRezBotData?: boolean;
   /** 不提示，直接执行 */
   yes?: boolean;
 };
@@ -28,7 +28,7 @@ export type UninstallResult = {
 /**
  * 在 projectRoot（通常为 process.cwd()）下执行卸载。
  * 始终移除：node_modules、dist。
- * 根据选项决定是否移除：workspace 目录、配置文件、.env、工作区 .rzeclaw 数据。
+ * 根据选项决定是否移除：workspace 目录、配置文件、.env、工作区 .rezbot 数据。
  */
 export function runUninstall(projectRoot: string, options: UninstallOptions): UninstallResult {
   const removed: string[] = [];
@@ -74,14 +74,14 @@ export function runUninstall(projectRoot: string, options: UninstallOptions): Un
   safeRemove("node_modules", join(projectRoot, "node_modules"), true);
   safeRemove("dist", join(projectRoot, "dist"), true);
   safeRemoveFile(".env", join(projectRoot, ".env"), options.removeEnv === true);
-  safeRemoveFile("rzeclaw.json", join(projectRoot, "rzeclaw.json"), options.removeConfig === true);
-  safeRemoveFile(".rzeclaw.json", join(projectRoot, ".rzeclaw.json"), options.removeConfig === true);
+  safeRemoveFile("rezbot.json", join(projectRoot, "rezbot.json"), options.removeConfig === true);
+  safeRemoveFile(".rezbot.json", join(projectRoot, ".rezbot.json"), options.removeConfig === true);
 
-  if (options.removeRzeclawData === true && workspacePath) {
-    const rzeclawDir = join(workspacePath, ".rzeclaw");
-    safeRemove("workspace/.rzeclaw", rzeclawDir, true);
-  } else if (existsSync(join(workspacePath ?? "", ".rzeclaw"))) {
-    kept.push("workspace/.rzeclaw");
+  if (options.removeRezBotData === true && workspacePath) {
+    const rezbotDir = join(workspacePath, ".rezbot");
+    safeRemove("workspace/.rezbot", rezbotDir, true);
+  } else if (existsSync(join(workspacePath ?? "", ".rezbot"))) {
+    kept.push("workspace/.rezbot");
   }
 
   if (options.removeWorkspace === true && workspacePath && existsSync(workspacePath)) {

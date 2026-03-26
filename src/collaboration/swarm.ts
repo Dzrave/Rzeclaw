@@ -3,7 +3,7 @@
  * 设计依据: docs/EVENT_BUS_COLLABORATION_DESIGN.md §5
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import { subscribe, publish } from "../event-bus/bus.js";
 import type { SwarmBroadcastEvent, SwarmContributionEvent } from "../event-bus/collaboration-schema.js";
 import { TOPIC_SWARM_BROADCAST, TOPIC_SWARM_CONTRIBUTION } from "../event-bus/collaboration-schema.js";
@@ -49,7 +49,7 @@ export function createBroadcastId(): string {
  * 发起方发布 swarm.broadcast 并收集 contribution，超时或达到 minContributions 后 resolve。
  */
 export function requestSwarmBroadcast(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   params: {
     sourceAgentId: string;
     task: { message: string; params?: Record<string, unknown> };
@@ -105,7 +105,7 @@ export function requestSwarmBroadcast(
 /**
  * 订阅 swarm.broadcast：targetAgentIds 含自己或为空时认领，执行后发布 swarm.contribution。
  */
-export function subscribeToSwarmBroadcast(config: RzeclawConfig): () => void {
+export function subscribeToSwarmBroadcast(config: RezBotConfig): () => void {
   if (!hasAgentsEnabled(config)) return () => {};
 
   return subscribe<SwarmBroadcastEvent>(TOPIC_SWARM_BROADCAST, async (event) => {

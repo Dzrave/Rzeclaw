@@ -5,7 +5,7 @@
  */
 
 import { spawn } from "node:child_process";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import type { ToolDef, ToolResult } from "./types.js";
 
 const IS_WIN = process.platform === "win32";
@@ -44,7 +44,7 @@ function isAllowedApp(processName: string, allowedApps: string[] | undefined): b
   return allowedApps.some((a) => a.toLowerCase() === lower);
 }
 
-export function getIdeOperationTools(config: RzeclawConfig): ToolDef[] {
+export function getIdeOperationTools(config: RezBotConfig): ToolDef[] {
   const tools: ToolDef[] = [];
   if (!IS_WIN) return tools;
 

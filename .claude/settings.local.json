@@ -27,7 +27,23 @@
       "Bash(done)",
       "Bash(npm run:*)",
       "Bash(robocopy dist:*)",
-      "Bash(xcopy \"E:\\\\Rzeclaw\\\\dist\" \"E:\\\\RzeclawRelaes\\\\dist\"\" /E /I /Y /Q)"
+      "Bash(xcopy \"E:\\\\Rzeclaw\\\\dist\" \"E:\\\\RzeclawRelaes\\\\dist\"\" /E /I /Y /Q)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(ls E:/Rzeclaw/.rzeclaw*)",
+      "Bash(find E:/Rzeclaw -maxdepth 2 -name *.yaml -o -name *.yml -o -name *.json)",
+      "Bash(find E:/Rzeclaw/.rzeclaw -name config*)",
+      "Bash(curl -s http://localhost:18789/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:18789/)",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(netstat -ano)",
+      "Bash(find /e/Rzeclaw/src/ui/src/i18n -type f \\\\\\(-name *.json -o -name *.ts \\\\\\))",
+      "Bash(grep -E \"^/e/Rzeclaw/[^/]+$\")",
+      "Bash(ls -la /e/Rzeclaw/*.json /e/Rzeclaw/*.md /e/Rzeclaw/*.mjs)",
+      "Bash(find src:*)",
+      "Bash(find E:/Rzeclaw -name *.bak -o -name *.backup -o -name *.tmp -o -name *~ -o -name *.old)",
+      "Bash(grep -r \"TODO\\\\|FIXME\\\\|DEPRECATED\\\\|LEGACY\" E:/Rzeclaw/src --include=*.ts --include=*.js)",
+      "Bash(grep -l \"frontend-office\\\\|Frontend\\\\|office\" \"E:/Rzeclaw/src/gateway\"/*.ts \"E:/Rzeclaw/src/cli.ts\")",
+      "Bash(grep -r \"deprecated\\\\|Deprecated\\\\|DEPRECATED\\\\|obsolete\\\\|legacy\\\\|Legacy\\\\|old\\\\|Old\" E:/Rzeclaw/src --include=*.ts)"
     ]
   }
 }

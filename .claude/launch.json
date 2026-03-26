@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Gateway (HTTP+WS)",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["rzeclaw.mjs", "gateway"],
+      "port": 18789
+    },
+    {
+      "name": "Vite Dev (Frontend HMR)",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite"],
+      "port": 5173
+    }
+  ]
+}

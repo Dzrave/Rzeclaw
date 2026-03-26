@@ -2,7 +2,7 @@
  * Phase 13 WO-BT-006/009/010/011: 执行器。按 flow 类型分发到 FSM 或 BT；注入 flowLibrary、runSubFlow、resultOf。
  */
 
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 import type { ToolDef } from "../tools/types.js";
 import type { FlowDef } from "./types.js";
 import { isBTFlow, isFSMFlow } from "./types.js";
@@ -13,7 +13,7 @@ import type { FlowRunToolContext } from "./run-tool.js";
 export type ExecuteFlowResult = { content: string; success: boolean };
 
 export type ExecuteFlowParams = {
-  config: RzeclawConfig;
+  config: RezBotConfig;
   workspace: string;
   flowId: string;
   flow: FlowDef;

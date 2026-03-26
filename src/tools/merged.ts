@@ -13,14 +13,14 @@ import { getMcpTools } from "../mcp/index.js";
 import { getIdeOperationTools } from "./ide-ui.js";
 import { createReplayOpsTool } from "./replay-ops.js";
 import { getEvolvedSkillsDir } from "../flows/evolution-insert-tree.js";
-import type { RzeclawConfig } from "../config.js";
+import type { RezBotConfig } from "../config.js";
 
 /**
  * 返回合并后的工具列表：CORE_TOOLS + Skills + evolved_skills（若启用）+ MCP + L2 IDE UI（若启用）+ replay_ops（WO-IDE-014）。
  * 供 runAgentLoop 与 Gateway 使用。
  */
 export async function getMergedTools(
-  config: RzeclawConfig,
+  config: RezBotConfig,
   workspaceRoot: string
 ): Promise<ToolDef[]> {
   const [skillTools, mcpTools] = await Promise.all([
