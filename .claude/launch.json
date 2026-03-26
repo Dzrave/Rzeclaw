@@ -10,7 +10,7 @@
     {
       "name": "Gateway (HTTP+WS)",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["rzeclaw.mjs", "gateway"],
+      "runtimeArgs": ["rezbot.mjs", "gateway"],
       "port": 18789
     },
     {

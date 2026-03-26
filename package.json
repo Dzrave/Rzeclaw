@@ -5,14 +5,14 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "rezbot": "rzeclaw.mjs"
+    "rezbot": "rezbot.mjs"
   },
   "scripts": {
     "build": "tsc",
     "setup": "npm install && npm run build",
-    "start": "node rzeclaw.mjs",
-    "gateway": "node rzeclaw.mjs gateway",
-    "agent": "node rzeclaw.mjs agent",
+    "start": "node rezbot.mjs",
+    "gateway": "node rezbot.mjs gateway",
+    "agent": "node rezbot.mjs agent",
     "build:ui": "cd src/ui && npm run build",
     "build:all": "npm run build && npm run build:ui",
     "test": "npm run build && node --test test/*.test.js"
@@ -47,7 +47,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Dzrave/Rzeclaw.git"
+    "url": "https://github.com/Dzrave/Rezbot.git"
   },
-  "homepage": "https://github.com/Dzrave/Rzeclaw#readme"
+  "homepage": "https://github.com/Dzrave/Rezbot#readme"
 }

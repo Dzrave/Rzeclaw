@@ -77,16 +77,16 @@ RezBot is a **fully local, privacy-first AI assistant** built on Node.js. It com
 
 ```bash
 # Clone
-git clone https://github.com/Dzrave/Rzeclaw.git
-cd Rzeclaw
+git clone https://github.com/Dzrave/Rezbot.git
+cd Rezbot
 
 # Install dependencies & build
 npm install
 npm run build
 
 # Configure -- copy the example and fill in your API key
-cp rzeclaw.example.json rzeclaw.json
-# Edit rzeclaw.json: set llm.apiKey, choose provider, etc.
+cp rezbot.example.json rezbot.json
+# Edit rezbot.json: set llm.apiKey, choose provider, etc.
 
 # Start the Gateway (default port 9099)
 npm run gateway
@@ -113,7 +113,7 @@ npm test
 ## Project Structure
 
 ```
-Rzeclaw/
+Rezbot/
 |-- src/
 |   |-- agent/          # Agent loop, context, goal, planning
 |   |-- agents/         # Multi-agent blueprints & instances
@@ -147,8 +147,8 @@ Rzeclaw/
 |-- scripts/            # Setup & acceptance scripts
 |-- site/               # Landing page (static HTML)
 |-- docs/               # Architecture & design documents
-|-- rzeclaw.example.json
-|-- rzeclaw.mjs         # CLI entry point
+|-- rezbot.example.json
+|-- rezbot.mjs         # CLI entry point
 |-- package.json
 +-- tsconfig.json
 ```
@@ -157,7 +157,7 @@ Rzeclaw/
 
 ## Configuration
 
-Copy `rzeclaw.example.json` to `rzeclaw.json` and customize. Key fields:
+Copy `rezbot.example.json` to `rezbot.json` and customize. Key fields:
 
 | Field | Description |
 |-------|-------------|
@@ -178,7 +178,7 @@ See [docs/CONFIG_REFERENCE.md](docs/CONFIG_REFERENCE.md) for the full field refe
 | Document | Purpose |
 |----------|---------|
 | [Overall Implemented Design](docs/OVERALL_IMPLEMENTED_DESIGN.md) | **As-Built** architecture, data flows, RPC/CLI reference |
-| [Config Reference](docs/CONFIG_REFERENCE.md) | Complete `rzeclaw.json` field guide |
+| [Config Reference](docs/CONFIG_REFERENCE.md) | Complete `rezbot.json` field guide |
 | [Swarm Vision](docs/SWARM_VISION_AND_OVERALL_DESIGN.md) | Long-term product vision & capability pillars |
 | [Master Plan & Phases](docs/MASTER_IMPLEMENTATION_PLAN_AND_PHASES.md) | Phase breakdown & work-order index |
 | [Implementation Summary](docs/IMPLEMENTATION_SUMMARY.md) | Phase 0-6 work orders & source file mapping |
