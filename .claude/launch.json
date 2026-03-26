@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "site",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "site", "-l", "3900"],
+      "port": 3900
+    },
+    {
       "name": "Gateway (HTTP+WS)",
       "runtimeExecutable": "node",
       "runtimeArgs": ["rzeclaw.mjs", "gateway"],
